@@ -79,7 +79,7 @@ var AnvisningerSignupFlow = (() => {
   }
 
   // packages/signup-flow/src/index.js
-  var BUILD_TIME = true ? "2026-02-26T14:15:22.027Z" : null;
+  var BUILD_TIME = true ? "2026-02-28T23:31:45.892Z" : null;
   var DEFAULT_CONFIG = {
     sliderId: "slider-signup",
     cvrWorkerUrl: "https://anvisninger-cvr-dev.maxks.workers.dev/cvr",
@@ -399,8 +399,8 @@ var AnvisningerSignupFlow = (() => {
           errorMsg = "Systemet er ikke tilg\xE6ngeligt fra dit lokation. Kontakt venligst support.";
           isCritical = true;
         } else if (res.status === 404) {
-          errorMsg = "Systemet svarede ikke korrekt. Pr\xF8v igen senere.";
-          isCritical = true;
+          errorMsg = data && data.error ? data.error : "Ikke fundet. Tjek dine oplysninger og pr\xF8v igen.";
+          isCritical = false;
         } else if (res.status >= 500) {
           errorMsg = "Serveren har problemer. Pr\xF8v igen senere.";
           isCritical = true;
@@ -780,7 +780,11 @@ var AnvisningerSignupFlow = (() => {
             } catch (err) {
               console.error("[Flow] CVR/plan lookup failed:", err);
               if (err && err.isCritical) {
-                window.AnvisningerSignupFlow.setCriticalError();
+                if (typeof window.AnvisningerSignupFlow?.setCriticalError === "function") {
+                  window.AnvisningerSignupFlow.setCriticalError();
+                } else {
+                  console.warn("[Flow] setCriticalError not available");
+                }
               }
               showErrorForStep(
                 config,

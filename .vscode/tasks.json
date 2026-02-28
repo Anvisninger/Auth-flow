@@ -5,6 +5,16 @@
 			"label": "Deploy CORS fix v1.10.11",
 			"type": "shell",
 			"command": "npx wrangler deploy --config packages/workers/outseta-plan-worker/wrangler.toml && npx wrangler deploy --config packages/workers/cvr-worker/wrangler.toml && git add -A && git commit -m \"v1.10.11: add www.anvisninger.dk to ALLOWED_ORIGINS in both workers\" && git push origin main"
+		},
+		{
+			"label": "Test CORS www",
+			"type": "shell",
+			"command": "curl -sI -H \"Origin: https://www.anvisninger.dk\" \"https://anvisninger-outseta-planinfo.maxks.workers.dev/check-email?email=test@test.dk\" | grep -i access-control"
+		},
+		{
+			"label": "Build and deploy v1.10.12",
+			"type": "shell",
+			"command": "node scripts/build-signup-flow.mjs && npx wrangler deploy --config packages/workers/cvr-worker/wrangler.toml && git add -A && git commit -m \"v1.10.12: fix 404 as non-critical user error; guard setCriticalError; Danish CVR not-found message\" && git push origin main"
 		}
 	]
 }

@@ -393,8 +393,10 @@ async function fetchWithTimeout(url, timeoutMs, options) {
         errorMsg = "Systemet er ikke tilgængeligt fra dit lokation. Kontakt venligst support.";
         isCritical = true;
       } else if (res.status === 404) {
-        errorMsg = "Systemet svarede ikke korrekt. Prøv igen senere.";
-        isCritical = true;
+        // 404 = resource not found (e.g. unknown CVR) — user error, not system error.
+        // Use the server's message if present, else a generic fallback.
+        errorMsg = data && data.error ? data.error : "Ikke fundet. Tjek dine oplysninger og prøv igen.";
+        isCritical = false;
       } else if (res.status >= 500) {
         errorMsg = "Serveren har problemer. Prøv igen senere.";
         isCritical = true;
@@ -872,7 +874,11 @@ export function initSignupFlow(userConfig = {}) {
             
             // Mark as critical error if worker is broken
             if (err && err.isCritical) {
-              window.AnvisningerSignupFlow.setCriticalError();
+              if (typeof window.AnvisningerSignupFlow?.setCriticalError === "function") {
+                window.AnvisningerSignupFlow.setCriticalError();
+              } else {
+                console.warn("[Flow] setCriticalError not available");
+              }
             }
             
             showErrorForStep(
