@@ -64,9 +64,12 @@ export default {
     const companyText = await companyRes.text();
 
     if (!companyRes.ok) {
+      const errorMsg = companyRes.status === 404
+        ? "CVR-nummeret blev ikke fundet. Tjek at det er korrekt."
+        : `Opslag fejlede (${companyRes.status}). Prøv igen senere.`;
       return json(
         {
-          error: `Company lookup failed (${companyRes.status})`,
+          error: errorMsg,
           ...(debug ? { companySample: companyText.slice(0, 800) } : {}),
         },
         companyRes.status,
