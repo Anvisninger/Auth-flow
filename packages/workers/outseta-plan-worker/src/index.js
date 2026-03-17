@@ -16,7 +16,7 @@ function getCorsHeaders(origin) {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const origin = request.headers.get("Origin") || "";
 
@@ -39,7 +39,7 @@ export default {
     }
 
     if (url.pathname === "/check-email") {
-      return handleCheckEmail(url, env, corsHeaders);
+      return handleCheckEmail(request, url, env, corsHeaders, ctx);
     }
 
     return new Response("Not found", { status: 404, headers: corsHeaders });
@@ -54,7 +54,7 @@ async function handlePlans(url, env, corsHeaders) {
       : null;
 
   if (employeesParam != null && (!Number.isFinite(employees) || employees < 0)) {
-    return json({ error: "Invalid employees parameter" }, 400, corsHeaders);
+    return json({ error: "Ugyldigt antal medarbejdere." }, 400, withNoStore(corsHeaders));
   }
 
   const planFamilyName = "OffentligtUdbud - Prismodel 2026";
@@ -64,11 +64,11 @@ async function handlePlans(url, env, corsHeaders) {
   const res = await fetchOutseta(endpoint, env);
 
   if (!res.ok) {
-    const text = await res.text();
+    await res.text();
     return json(
-      { error: `Outseta error (${res.status})`, details: text.slice(0, 500) },
-      res.status,
-      corsHeaders
+      { error: "Planopslag er midlertidigt utilgængeligt. Prøv igen senere." },
+      502,
+      withNoStore(corsHeaders)
     );
   }
 
@@ -79,13 +79,10 @@ async function handlePlans(url, env, corsHeaders) {
   if (!family) {
     return json(
       {
-        error: `PlanFamily not found: ${planFamilyName}`,
-        availablePlanFamilies: (raw?.items || [])
-          .map((x) => x?.Name)
-          .filter(Boolean),
+        error: "Prisplanerne kunne ikke findes. Kontakt support, hvis problemet fortsætter.",
       },
       404,
-      corsHeaders
+      withNoStore(corsHeaders)
     );
   }
 
@@ -129,16 +126,28 @@ async function handlePlans(url, env, corsHeaders) {
       ...(employees != null ? { employees, plan: selectedPlan } : {}),
     },
     200,
-    corsHeaders
+    withNoStore(corsHeaders)
   );
 }
 
-async function handleCheckEmail(url, env, corsHeaders) {
+async function handleCheckEmail(request, url, env, corsHeaders, ctx) {
   const emailParam = url.searchParams.get("email");
-  const email = (emailParam || "").trim();
+  const email = (emailParam || "").trim().toLowerCase();
 
   if (!email) {
-    return json({ error: "Missing email parameter" }, 400, corsHeaders);
+    return json({ error: "Manglende e-mailadresse." }, 400, withNoStore(corsHeaders));
+  }
+
+  if (!isValidEmail(email)) {
+    return json({ error: "Ugyldig e-mailadresse." }, 400, withNoStore(corsHeaders));
+  }
+
+  if (await isRateLimited(request, ctx)) {
+    return json(
+      { error: "For mange forespørgsler. Vent et øjeblik og prøv igen." },
+      429,
+      withNoStore(corsHeaders)
+    );
   }
 
   // Query Outseta for person with this email
@@ -148,11 +157,11 @@ async function handleCheckEmail(url, env, corsHeaders) {
   const res = await fetchOutseta(endpoint, env);
 
   if (!res.ok) {
-    const text = await res.text();
+    await res.text();
     return json(
-      { error: `Outseta error (${res.status})`, details: text.slice(0, 500) },
-      res.status,
-      corsHeaders
+      { error: "E-mailvalidering er midlertidigt utilgængelig. Prøv igen senere." },
+      502,
+      withNoStore(corsHeaders)
     );
   }
 
@@ -173,13 +182,54 @@ async function handleCheckEmail(url, env, corsHeaders) {
 
   return json(
     {
-      email,
       exists,
-      message: exists ? "Email address is already registered to an account" : "Email is available",
+      message: exists ? "E-mailadressen er allerede tilknyttet en konto." : "E-mailadressen kan bruges.",
     },
     200,
-    corsHeaders
+    withNoStore(corsHeaders)
   );
+}
+
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function getClientFingerprint(request) {
+  const ip = request.headers.get("CF-Connecting-IP") || request.headers.get("x-forwarded-for") || "unknown";
+  const userAgent = request.headers.get("User-Agent") || "unknown";
+  return `${ip}|${userAgent}`;
+}
+
+async function isRateLimited(request, ctx) {
+  const fingerprint = getClientFingerprint(request);
+  const cache = caches.default;
+  const cacheKey = new Request(`https://internal.anvisninger/check-email-rate-limit/${encodeURIComponent(fingerprint)}`);
+  const existing = await cache.match(cacheKey);
+  if (existing) {
+    return true;
+  }
+
+  const marker = new Response("1", {
+    headers: {
+      "Cache-Control": "max-age=3",
+    },
+  });
+
+  const write = cache.put(cacheKey, marker);
+  if (ctx && typeof ctx.waitUntil === "function") {
+    ctx.waitUntil(write);
+  } else {
+    await write;
+  }
+
+  return false;
+}
+
+function withNoStore(headers) {
+  return {
+    ...headers,
+    "Cache-Control": "no-store",
+  };
 }
 
 async function fetchOutseta(endpoint, env) {

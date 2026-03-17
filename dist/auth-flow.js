@@ -109,20 +109,27 @@ var AnvisningerAuthFlow = (() => {
       element.style.display = "block";
     }
   }
+  function isValidEmail(email) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  }
+  function clearAuthStorage() {
+    localStorage.removeItem("hasLoggedIn");
+  }
   function handleLogout(config) {
-    localStorage.clear();
+    clearAuthStorage();
     document.cookie = `${config.logoutCookieName}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; domain=${config.logoutCookieDomain}; Secure; SameSite=None;`;
     window.alert("Luk venligst alle vinduer for at logge helt ud!");
   }
   function handleURLActions(config) {
-    const url = window.location.href;
-    if (url.includes("post-sign-up")) {
+    const currentUrl = new URL(window.location.href);
+    const route = `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`;
+    if (route.includes("post-sign-up")) {
       displayElement(config.postSignUpElementId);
-    } else if (url.includes("o-logout-link")) {
+    } else if (route.includes("o-logout-link")) {
       handleLogout(config);
-    } else if (url.includes("logged-in-false")) {
+    } else if (route.includes("logged-in-false")) {
       displayElement(config.loggedInFalseElementId);
-    } else if (url.includes("404")) {
+    } else if (currentUrl.pathname === "/404" || route.includes("/404")) {
       displayElement(config.errorElementId);
     }
   }
@@ -143,9 +150,9 @@ var AnvisningerAuthFlow = (() => {
   async function handleLogin(event, config) {
     event.preventDefault();
     const emailInput = document.getElementById(config.emailInputId);
-    const email = (emailInput?.value || "").trim();
-    if (!email) {
-      window.alert("Indtast venligst en e-mailadresse.");
+    const email = (emailInput?.value || "").trim().toLowerCase();
+    if (!email || !isValidEmail(email)) {
+      window.alert("Indtast venligst en gyldig e-mailadresse.");
       return;
     }
     if (!window.Outseta || typeof window.Outseta.setMagicLinkIdToken !== "function" || typeof window.Outseta.getUser !== "function") {
@@ -179,7 +186,7 @@ var AnvisningerAuthFlow = (() => {
   }
 
   // packages/auth-flow/src/index.js
-  var BUILD_TIME = true ? "2026-03-17T13:33:21.249Z" : null;
+  var BUILD_TIME = true ? "2026-03-17T13:41:09.334Z" : null;
   var DEFAULT_CONFIG = {
     sliderId: "slider-signup",
     cvrWorkerUrl: "https://anvisninger-cvr-dev.maxks.workers.dev/cvr",
@@ -417,7 +424,7 @@ var AnvisningerAuthFlow = (() => {
     );
     return checked ? checked.value : null;
   }
-  function isValidEmail(value) {
+  function isValidEmail2(value) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
   }
   function isValidEan(value) {
@@ -532,7 +539,7 @@ var AnvisningerAuthFlow = (() => {
     return fetchWithTimeout(url, config.timeouts.planMs, { headers: { Accept: "application/json" } });
   }
   async function checkEmailExists(email, config) {
-    if (!email || !isValidEmail(email)) return { exists: false };
+    if (!email || !isValidEmail2(email)) return { exists: false };
     const baseUrl = config.emailCheckWorkerUrl ? config.emailCheckWorkerUrl : config.planWorkerUrl.replace(/\/plans$/, "/check-email");
     const url = baseUrl + "?email=" + encodeURIComponent(email);
     try {
@@ -924,7 +931,7 @@ var AnvisningerAuthFlow = (() => {
             const invoiceEmail = getInputValueById(config.invoicingFieldIds.invoiceEmail);
             const ean = getInputValueById(config.invoicingFieldIds.ean);
             let hasError = false;
-            if (invoiceEmail && !isValidEmail(invoiceEmail)) {
+            if (invoiceEmail && !isValidEmail2(invoiceEmail)) {
               showInvoicingError(config, "email", "Faktureringse-mailadresse er ugyldig.");
               hasError = true;
             }
@@ -979,10 +986,10 @@ var AnvisningerAuthFlow = (() => {
           const phone = getInputValueById(config.personFieldIds.phone);
           const check = state.emailCheck || { email: "", status: "idle" };
           let enabled = true;
-          if (!firstName || !lastName || !email || !isValidEmail(email)) {
+          if (!firstName || !lastName || !email || !isValidEmail2(email)) {
             enabled = false;
           }
-          if (email && isValidEmail(email)) {
+          if (email && isValidEmail2(email)) {
             if (check.email === email && (check.status === "exists" || check.status === "error" || check.status === "pending")) {
               enabled = false;
             }
@@ -1041,12 +1048,12 @@ var AnvisningerAuthFlow = (() => {
             showError(getErrorBoxId(config, "contact", config.personFieldIds.lastName), "Efternavn er p\xE5kr\xE6vet.");
             hasError = true;
           }
-          if (!email || !isValidEmail(email)) {
+          if (!email || !isValidEmail2(email)) {
             showError(getErrorBoxId(config, "contact", config.personFieldIds.email), "En gyldig e-mailadresse er p\xE5kr\xE6vet.");
             hasError = true;
           }
           const emailCheck = state.emailCheck || { email: "", status: "idle" };
-          if (!hasError && email && isValidEmail(email)) {
+          if (!hasError && email && isValidEmail2(email)) {
             if (emailCheck.email !== email || emailCheck.status === "idle") {
               state.emailCheck = { email, status: "pending" };
               updateHandOffButtonState();

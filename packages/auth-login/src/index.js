@@ -33,22 +33,31 @@ function displayElement(elementId) {
   }
 }
 
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function clearAuthStorage() {
+  localStorage.removeItem("hasLoggedIn");
+}
+
 function handleLogout(config) {
-  localStorage.clear();
+  clearAuthStorage();
   document.cookie = `${config.logoutCookieName}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; domain=${config.logoutCookieDomain}; Secure; SameSite=None;`;
   window.alert("Luk venligst alle vinduer for at logge helt ud!");
 }
 
 function handleURLActions(config) {
-  const url = window.location.href;
+  const currentUrl = new URL(window.location.href);
+  const route = `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`;
 
-  if (url.includes("post-sign-up")) {
+  if (route.includes("post-sign-up")) {
     displayElement(config.postSignUpElementId);
-  } else if (url.includes("o-logout-link")) {
+  } else if (route.includes("o-logout-link")) {
     handleLogout(config);
-  } else if (url.includes("logged-in-false")) {
+  } else if (route.includes("logged-in-false")) {
     displayElement(config.loggedInFalseElementId);
-  } else if (url.includes("404")) {
+  } else if (currentUrl.pathname === "/404" || route.includes("/404")) {
     displayElement(config.errorElementId);
   }
 }
@@ -75,9 +84,9 @@ async function handleLogin(event, config) {
   event.preventDefault();
 
   const emailInput = document.getElementById(config.emailInputId);
-  const email = (emailInput?.value || "").trim();
-  if (!email) {
-    window.alert("Indtast venligst en e-mailadresse.");
+  const email = (emailInput?.value || "").trim().toLowerCase();
+  if (!email || !isValidEmail(email)) {
+    window.alert("Indtast venligst en gyldig e-mailadresse.");
     return;
   }
 
