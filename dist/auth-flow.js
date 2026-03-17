@@ -251,7 +251,10 @@ var AnvisningerAuthFlow = (() => {
       redirectToErrorPage(config);
       return;
     }
+    let handled = false;
     window.Outseta.on("accessToken.set", (jwt) => {
+      if (handled) return;
+      handled = true;
       if (!jwt) {
         console.error("[Callback] No JWT received during login redirection.");
         redirectToErrorPage(config);
@@ -259,6 +262,11 @@ var AnvisningerAuthFlow = (() => {
       }
       handleAccessTokenSet(jwt, config, opgrader, hasLoggedIn);
     });
+    setTimeout(() => {
+      if (handled) return;
+      console.warn("[Callback] accessToken.set was not received in time. Falling back to existing plan lookup.");
+      handleExistingPlan(config);
+    }, 2500);
   }
   function initOutsetaAuthCallback(userConfig = {}) {
     const config = { ...DEFAULT_CALLBACK_CONFIG, ...userConfig || {} };
@@ -267,12 +275,17 @@ var AnvisningerAuthFlow = (() => {
       const opgrader = localStorage.getItem("comingFromOpgrader");
       const planUpgrade = localStorage.getItem("planUpgrade");
       const hasLoggedIn = localStorage.getItem("hasLoggedIn");
-      if (comingFromLoginOrBackup) {
-        handleLoginRedirection(config, opgrader, hasLoggedIn);
+      const existingPlanUid = getCookie(config.planUidCookieName);
+      if (existingPlanUid) {
+        redirectToPlan(existingPlanUid, config);
         return;
       }
       if (planUpgrade === "true") {
         handlePlanUpgrade(config);
+        return;
+      }
+      if (comingFromLoginOrBackup || window.location.pathname.includes("/auth/callback")) {
+        handleLoginRedirection(config, opgrader, hasLoggedIn);
         return;
       }
       handleExistingPlan(config);
@@ -474,7 +487,7 @@ var AnvisningerAuthFlow = (() => {
   }
 
   // packages/auth-flow/src/index.js
-  var BUILD_TIME = true ? "2026-03-17T14:29:08.495Z" : null;
+  var BUILD_TIME = true ? "2026-03-17T14:41:14.585Z" : null;
   var DEFAULT_CONFIG = {
     sliderId: "slider-signup",
     cvrWorkerUrl: "https://anvisninger-cvr-dev.maxks.workers.dev/cvr",

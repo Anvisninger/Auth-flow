@@ -197,7 +197,12 @@ function handleLoginRedirection(config, opgrader, hasLoggedIn) {
     return;
   }
 
+  let handled = false;
+
   window.Outseta.on("accessToken.set", (jwt) => {
+    if (handled) return;
+    handled = true;
+
     if (!jwt) {
       console.error("[Callback] No JWT received during login redirection.");
       redirectToErrorPage(config);
@@ -206,6 +211,12 @@ function handleLoginRedirection(config, opgrader, hasLoggedIn) {
 
     handleAccessTokenSet(jwt, config, opgrader, hasLoggedIn);
   });
+
+  setTimeout(() => {
+    if (handled) return;
+    console.warn("[Callback] accessToken.set was not received in time. Falling back to existing plan lookup.");
+    handleExistingPlan(config);
+  }, 2500);
 }
 
 export function initOutsetaAuthCallback(userConfig = {}) {
@@ -217,13 +228,22 @@ export function initOutsetaAuthCallback(userConfig = {}) {
     const planUpgrade = localStorage.getItem("planUpgrade");
     const hasLoggedIn = localStorage.getItem("hasLoggedIn");
 
-    if (comingFromLoginOrBackup) {
-      handleLoginRedirection(config, opgrader, hasLoggedIn);
+    // If a plan cookie already exists, trust it first regardless of referrer.
+    const existingPlanUid = getCookie(config.planUidCookieName);
+    if (existingPlanUid) {
+      redirectToPlan(existingPlanUid, config);
       return;
     }
 
     if (planUpgrade === "true") {
       handlePlanUpgrade(config);
+      return;
+    }
+
+    // In staging or privacy-hardened contexts, referrer can be empty even after login.
+    // Try accessToken flow if either referrer indicates login OR we are on callback without a plan cookie.
+    if (comingFromLoginOrBackup || window.location.pathname.includes("/auth/callback")) {
+      handleLoginRedirection(config, opgrader, hasLoggedIn);
       return;
     }
 
