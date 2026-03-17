@@ -117,7 +117,8 @@ var AnvisningerAuthFlow = (() => {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   }
   function clearAuthStorage() {
-    localStorage.removeItem("hasLoggedIn");
+    localStorage.clear();
+    sessionStorage.clear();
   }
   function handleLogout(config) {
     clearAuthStorage();
@@ -219,7 +220,8 @@ var AnvisningerAuthFlow = (() => {
     return window.magic;
   }
   function clearAuthStorage2() {
-    localStorage.removeItem("hasLoggedIn");
+    localStorage.clear();
+    sessionStorage.clear();
   }
   function clearCookie(config) {
     document.cookie = `${config.logoutCookieName}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; domain=${config.logoutCookieDomain}; Secure; SameSite=None;`;
@@ -253,7 +255,7 @@ var AnvisningerAuthFlow = (() => {
   }
 
   // packages/auth-flow/src/index.js
-  var BUILD_TIME = true ? "2026-03-17T13:54:00.102Z" : null;
+  var BUILD_TIME = true ? "2026-03-17T13:56:43.046Z" : null;
   var DEFAULT_CONFIG = {
     sliderId: "slider-signup",
     cvrWorkerUrl: "https://anvisninger-cvr-dev.maxks.workers.dev/cvr",

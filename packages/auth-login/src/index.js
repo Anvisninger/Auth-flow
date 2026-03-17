@@ -38,7 +38,8 @@ function isValidEmail(email) {
 }
 
 function clearAuthStorage() {
-  localStorage.removeItem("hasLoggedIn");
+  localStorage.clear();
+  sessionStorage.clear();
 }
 
 function handleLogout(config) {
