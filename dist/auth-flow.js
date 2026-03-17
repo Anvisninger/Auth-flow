@@ -21,7 +21,10 @@ var AnvisningerAuthFlow = (() => {
   var index_exports = {};
   __export(index_exports, {
     default: () => index_default,
-    initSignupFlow: () => initSignupFlow
+    initOutsetaMagicLogin: () => initOutsetaMagicLogin,
+    initSignupFlow: () => initSignupFlow,
+    isCritical: () => isCritical,
+    setCriticalError: () => setCriticalError
   });
 
   // packages/auth-flow/src/ga-tracking.js
@@ -186,7 +189,7 @@ var AnvisningerAuthFlow = (() => {
   }
 
   // packages/auth-flow/src/index.js
-  var BUILD_TIME = true ? "2026-03-17T13:41:09.334Z" : null;
+  var BUILD_TIME = true ? "2026-03-17T13:48:53.981Z" : null;
   var DEFAULT_CONFIG = {
     sliderId: "slider-signup",
     cvrWorkerUrl: "https://anvisninger-cvr-dev.maxks.workers.dev/cvr",
@@ -245,6 +248,11 @@ var AnvisningerAuthFlow = (() => {
     "contactSales",
     "contact"
   ];
+  var isCritical = false;
+  function setCriticalError() {
+    isCritical = true;
+    console.warn("[Flow] Critical error detected - form is broken");
+  }
   function withDomReady2(fn, useWebflowReady) {
     if (useWebflowReady && window.Webflow && Array.isArray(window.Webflow)) {
       window.Webflow.push(fn);
@@ -501,21 +509,21 @@ var AnvisningerAuthFlow = (() => {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         let errorMsg = "";
-        let isCritical = false;
+        let isCritical2 = false;
         if (res.status === 403) {
           errorMsg = "Systemet er ikke tilg\xE6ngeligt fra dit lokation. Kontakt venligst support.";
-          isCritical = true;
+          isCritical2 = true;
         } else if (res.status === 404) {
           errorMsg = data && data.error ? data.error : "Ikke fundet. Tjek dine oplysninger og pr\xF8v igen.";
-          isCritical = false;
+          isCritical2 = false;
         } else if (res.status >= 500) {
           errorMsg = "Serveren har problemer. Pr\xF8v igen senere.";
-          isCritical = true;
+          isCritical2 = true;
         } else {
           errorMsg = data && data.error ? data.error : "Systemfejl (" + res.status + ")";
         }
         const err = new Error(errorMsg);
-        err.isCritical = isCritical;
+        err.isCritical = isCritical2;
         throw err;
       }
       return data;
@@ -884,9 +892,8 @@ var AnvisningerAuthFlow = (() => {
             } catch (err) {
               console.error("[Flow] CVR/plan lookup failed:", err);
               if (err && err.isCritical) {
-                const api = window.AnvisningerAuthFlow || window.AnvisningerSignupFlow;
-                if (typeof api?.setCriticalError === "function") {
-                  api.setCriticalError();
+                if (typeof setCriticalError === "function") {
+                  setCriticalError();
                 } else {
                   console.warn("[Flow] setCriticalError not available");
                 }
@@ -1122,15 +1129,6 @@ var AnvisningerAuthFlow = (() => {
       getState: () => ({ ...state, company: { ...state.company } })
     };
   }
-  window.AnvisningerAuthFlow = window.AnvisningerAuthFlow || {};
-  window.AnvisningerAuthFlow.initSignupFlow = initSignupFlow;
-  window.AnvisningerAuthFlow.initOutsetaMagicLogin = initOutsetaMagicLogin;
-  window.AnvisningerAuthFlow.isCritical = false;
-  window.AnvisningerSignupFlow = window.AnvisningerAuthFlow;
-  window.AnvisningerAuthFlow.setCriticalError = function() {
-    window.AnvisningerAuthFlow.isCritical = true;
-    console.warn("[Flow] Critical error detected - form is broken");
-  };
   var index_default = initSignupFlow;
   return __toCommonJS(index_exports);
 })();

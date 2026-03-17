@@ -72,6 +72,13 @@ const STEP_ORDER = [
   "contact",
 ];
 
+export let isCritical = false;
+
+export function setCriticalError() {
+  isCritical = true;
+  console.warn("[Flow] Critical error detected - form is broken");
+}
+
 function withDomReady(fn, useWebflowReady) {
   if (useWebflowReady && window.Webflow && Array.isArray(window.Webflow)) {
     window.Webflow.push(fn);
@@ -870,9 +877,8 @@ export function initSignupFlow(userConfig = {}) {
             
             // Mark as critical error if worker is broken
             if (err && err.isCritical) {
-              const api = window.AnvisningerAuthFlow || window.AnvisningerSignupFlow;
-              if (typeof api?.setCriticalError === "function") {
-                api.setCriticalError();
+              if (typeof setCriticalError === "function") {
+                setCriticalError();
               } else {
                 console.warn("[Flow] setCriticalError not available");
               }
@@ -1162,19 +1168,5 @@ export function initSignupFlow(userConfig = {}) {
   };
 }
 
-// Global object to track library state and critical errors
-window.AnvisningerAuthFlow = window.AnvisningerAuthFlow || {};
-window.AnvisningerAuthFlow.initSignupFlow = initSignupFlow;
-window.AnvisningerAuthFlow.initOutsetaMagicLogin = initOutsetaMagicLogin;
-window.AnvisningerAuthFlow.isCritical = false;
-
-// Backward compatibility alias
-window.AnvisningerSignupFlow = window.AnvisningerAuthFlow;
-
-// Function to mark critical error (called from library when critical errors occur)
-window.AnvisningerAuthFlow.setCriticalError = function() {
-  window.AnvisningerAuthFlow.isCritical = true;
-  console.warn("[Flow] Critical error detected - form is broken");
-};
-
+export { initOutsetaMagicLogin };
 export default initSignupFlow;

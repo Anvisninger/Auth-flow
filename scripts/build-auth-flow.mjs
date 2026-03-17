@@ -1,20 +1,26 @@
 import { build } from "esbuild";
-import { copyFileSync } from "node:fs";
 
 const buildTime = new Date().toISOString();
 
-await build({
+const commonConfig = {
   entryPoints: ["packages/auth-flow/src/index.js"],
   bundle: true,
   format: "iife",
-  globalName: "AnvisningerAuthFlow",
-  outfile: "dist/auth-flow.js",
   define: {
     __BUILD_TIME__: JSON.stringify(buildTime),
   },
+};
+
+await build({
+  ...commonConfig,
+  globalName: "AnvisningerAuthFlow",
+  outfile: "dist/auth-flow.js",
 });
 
-// Backward-compatible legacy filename for existing embeds
-copyFileSync("dist/auth-flow.js", "dist/signup-flow.js");
+await build({
+  ...commonConfig,
+  globalName: "AnvisningerSignupFlow",
+  outfile: "dist/signup-flow.js",
+});
 
-console.log("Built auth-flow.js (+ legacy signup-flow.js) at", buildTime);
+console.log("Built auth-flow.js and signup-flow.js at", buildTime);
