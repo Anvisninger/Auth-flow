@@ -22,6 +22,7 @@ var AnvisningerAuthFlow = (() => {
   __export(index_exports, {
     default: () => index_default,
     initOutsetaMagicLogin: () => initOutsetaMagicLogin,
+    initOutsetaMagicLogout: () => initOutsetaMagicLogout,
     initSignupFlow: () => initSignupFlow,
     isCritical: () => isCritical,
     setCriticalError: () => setCriticalError
@@ -188,8 +189,71 @@ var AnvisningerAuthFlow = (() => {
     }, config.useWebflowReady);
   }
 
+  // packages/auth-logout/src/index.js
+  var DEFAULT_LOGOUT_CONFIG = {
+    magicPublishableKey: "pk_live_5FDB2E95F816D1E5",
+    redirectPath: "/auth/login#o-logout-link",
+    logoutCookieName: "outsetaPlanUid",
+    logoutCookieDomain: ".anvisninger.dk",
+    useWebflowReady: false
+  };
+  function withDomReady2(fn, useWebflowReady) {
+    if (useWebflowReady && window.Webflow && Array.isArray(window.Webflow)) {
+      window.Webflow.push(fn);
+      return;
+    }
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", fn, { once: true });
+      return;
+    }
+    fn();
+  }
+  function ensureMagic2(config) {
+    if (window.magic) {
+      return window.magic;
+    }
+    if (!window.Magic) {
+      throw new Error("Magic SDK er ikke indl\xE6st. Tilf\xF8j script-tag i head.");
+    }
+    window.magic = new window.Magic(config.magicPublishableKey);
+    return window.magic;
+  }
+  function clearAuthStorage2() {
+    localStorage.removeItem("hasLoggedIn");
+  }
+  function clearCookie(config) {
+    document.cookie = `${config.logoutCookieName}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; domain=${config.logoutCookieDomain}; Secure; SameSite=None;`;
+    document.cookie = `${config.logoutCookieName}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; Secure; SameSite=None;`;
+  }
+  async function logoutOutseta() {
+    if (window.Outseta?.auth && typeof window.Outseta.auth.logout === "function") {
+      await window.Outseta.auth.logout();
+    }
+  }
+  async function runOutsetaMagicLogout(userConfig = {}) {
+    const config = { ...DEFAULT_LOGOUT_CONFIG, ...userConfig || {} };
+    const magic = ensureMagic2(config);
+    clearAuthStorage2();
+    clearCookie(config);
+    try {
+      await logoutOutseta();
+    } catch (error) {
+      console.warn("[Logout] Outseta logout failed:", error);
+    }
+    await magic.user.logout();
+    window.location.href = config.redirectPath;
+  }
+  function initOutsetaMagicLogout(userConfig = {}) {
+    withDomReady2(() => {
+      runOutsetaMagicLogout(userConfig).catch((error) => {
+        console.error("[Logout] Failed:", error);
+        window.alert("Der opstod et problem ved log ud. Pr\xF8v igen.");
+      });
+    }, userConfig?.useWebflowReady ?? DEFAULT_LOGOUT_CONFIG.useWebflowReady);
+  }
+
   // packages/auth-flow/src/index.js
-  var BUILD_TIME = true ? "2026-03-17T13:48:53.981Z" : null;
+  var BUILD_TIME = true ? "2026-03-17T13:54:00.102Z" : null;
   var DEFAULT_CONFIG = {
     sliderId: "slider-signup",
     cvrWorkerUrl: "https://anvisninger-cvr-dev.maxks.workers.dev/cvr",
@@ -253,7 +317,7 @@ var AnvisningerAuthFlow = (() => {
     isCritical = true;
     console.warn("[Flow] Critical error detected - form is broken");
   }
-  function withDomReady2(fn, useWebflowReady) {
+  function withDomReady3(fn, useWebflowReady) {
     if (useWebflowReady && window.Webflow && Array.isArray(window.Webflow)) {
       window.Webflow.push(fn);
       return;
@@ -661,7 +725,7 @@ var AnvisningerAuthFlow = (() => {
     } else {
       console.log("[Flow] build time unknown");
     }
-    withDomReady2(() => {
+    withDomReady3(() => {
       const sliderEl = document.getElementById(config.sliderId);
       if (!sliderEl) {
         console.error("[Flow] slider not found:", config.sliderId);

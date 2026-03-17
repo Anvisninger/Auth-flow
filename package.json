@@ -4,6 +4,7 @@
   "workspaces": [
     "packages/auth-flow",
     "packages/auth-login",
+    "packages/auth-logout",
     "packages/workers/*"
   ],
   "scripts": {

@@ -2,6 +2,7 @@ const BUILD_TIME = typeof __BUILD_TIME__ !== "undefined" ? __BUILD_TIME__ : null
 
 import { generateTransactionId, pushGAPurchaseEvent, setupOutsetaCompletionTracking } from "./ga-tracking.js";
 import { initOutsetaMagicLogin } from "../../auth-login/src/index.js";
+import { initOutsetaMagicLogout } from "../../auth-logout/src/index.js";
 
 // TODO: Future improvements:
 // - Optimize error UI: Replace alert() with custom banner/modal for critical errors
@@ -1168,5 +1169,5 @@ export function initSignupFlow(userConfig = {}) {
   };
 }
 
-export { initOutsetaMagicLogin };
+export { initOutsetaMagicLogin, initOutsetaMagicLogout };
 export default initSignupFlow;
