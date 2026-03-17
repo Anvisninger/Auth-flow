@@ -67,15 +67,25 @@ function getCookie(name) {
   return cookieParts.length === 2 ? cookieParts.pop().split(";").shift() : null;
 }
 
+function resolveCookieDomain(config) {
+  const hostname = window.location.hostname;
+  if (hostname === "anvisninger.dk" || hostname.endsWith(".anvisninger.dk")) {
+    return config.cookieDomain;
+  }
+  return null;
+}
+
 function setCookieWithExpiry(name, value, daysToExpire, cookieDomain) {
   const now = new Date();
   now.setTime(now.getTime() + daysToExpire * 24 * 60 * 60 * 1000);
   const expires = `expires=${now.toUTCString()}`;
-  document.cookie = `${name}=${value};${expires};path=/;Secure;SameSite=None;domain=${cookieDomain}`;
+  const domainPart = cookieDomain ? `;domain=${cookieDomain}` : "";
+  document.cookie = `${name}=${value};${expires};path=/;Secure;SameSite=None${domainPart}`;
 }
 
 function deleteCookie(name, cookieDomain) {
-  document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${cookieDomain}; Secure; SameSite=None`;
+  const domainPart = cookieDomain ? `; domain=${cookieDomain}` : "";
+  document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/${domainPart}; Secure; SameSite=None`;
   document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; Secure; SameSite=None`;
 }
 
@@ -89,7 +99,7 @@ function updatePlanUidCookie(planUid, config) {
     config.planUidCookieName,
     planUid,
     config.cookieDaysToExpire,
-    config.cookieDomain
+    resolveCookieDomain(config)
   );
 }
 
@@ -162,7 +172,7 @@ function handleAccessTokenSet(jwt, config, opgrader, hasLoggedIn) {
     config.planUidCookieName,
     planUid,
     config.cookieDaysToExpire,
-    config.cookieDomain
+    resolveCookieDomain(config)
   );
 
   if (hasLoggedIn === "false") {

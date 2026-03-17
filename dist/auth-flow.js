@@ -146,14 +146,23 @@ var AnvisningerAuthFlow = (() => {
     const cookieParts = `; ${document.cookie}`.split(`; ${name}=`);
     return cookieParts.length === 2 ? cookieParts.pop().split(";").shift() : null;
   }
+  function resolveCookieDomain(config) {
+    const hostname = window.location.hostname;
+    if (hostname === "anvisninger.dk" || hostname.endsWith(".anvisninger.dk")) {
+      return config.cookieDomain;
+    }
+    return null;
+  }
   function setCookieWithExpiry(name, value, daysToExpire, cookieDomain) {
     const now = /* @__PURE__ */ new Date();
     now.setTime(now.getTime() + daysToExpire * 24 * 60 * 60 * 1e3);
     const expires = `expires=${now.toUTCString()}`;
-    document.cookie = `${name}=${value};${expires};path=/;Secure;SameSite=None;domain=${cookieDomain}`;
+    const domainPart = cookieDomain ? `;domain=${cookieDomain}` : "";
+    document.cookie = `${name}=${value};${expires};path=/;Secure;SameSite=None${domainPart}`;
   }
   function deleteCookie(name, cookieDomain) {
-    document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${cookieDomain}; Secure; SameSite=None`;
+    const domainPart = cookieDomain ? `; domain=${cookieDomain}` : "";
+    document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/${domainPart}; Secure; SameSite=None`;
     document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; Secure; SameSite=None`;
   }
   function updatePlanUidCookie(planUid, config) {
@@ -165,7 +174,7 @@ var AnvisningerAuthFlow = (() => {
       config.planUidCookieName,
       planUid,
       config.cookieDaysToExpire,
-      config.cookieDomain
+      resolveCookieDomain(config)
     );
   }
   function redirectToLoginWithFlag(flag, config) {
@@ -222,7 +231,7 @@ var AnvisningerAuthFlow = (() => {
       config.planUidCookieName,
       planUid,
       config.cookieDaysToExpire,
-      config.cookieDomain
+      resolveCookieDomain(config)
     );
     if (hasLoggedIn === "false") {
       removeCallbackFlags();
@@ -308,9 +317,20 @@ var AnvisningerAuthFlow = (() => {
     localStorage.clear();
     sessionStorage.clear();
   }
+  function resolveCookieDomain2(config) {
+    const hostname = window.location.hostname;
+    if (hostname === "anvisninger.dk" || hostname.endsWith(".anvisninger.dk")) {
+      return config.logoutCookieDomain;
+    }
+    return null;
+  }
+  function expireCookie(name, domain) {
+    const domainPart = domain ? `; domain=${domain}` : "";
+    document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/${domainPart}; Secure; SameSite=None;`;
+  }
   function handleLogout(config) {
     clearAuthStorage();
-    document.cookie = `${config.logoutCookieName}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; domain=${config.logoutCookieDomain}; Secure; SameSite=None;`;
+    expireCookie(config.logoutCookieName, resolveCookieDomain2(config));
     window.alert("Luk venligst alle vinduer for at logge helt ud!");
   }
   function handleURLActions(config) {
@@ -411,9 +431,20 @@ var AnvisningerAuthFlow = (() => {
     localStorage.clear();
     sessionStorage.clear();
   }
+  function resolveCookieDomain3(config) {
+    const hostname = window.location.hostname;
+    if (hostname === "anvisninger.dk" || hostname.endsWith(".anvisninger.dk")) {
+      return config.logoutCookieDomain;
+    }
+    return null;
+  }
+  function expireCookie2(name, domain) {
+    const domainPart = domain ? `; domain=${domain}` : "";
+    document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/${domainPart}; Secure; SameSite=None;`;
+  }
   function clearCookie(config) {
-    document.cookie = `${config.logoutCookieName}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; domain=${config.logoutCookieDomain}; Secure; SameSite=None;`;
-    document.cookie = `${config.logoutCookieName}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; Secure; SameSite=None;`;
+    expireCookie2(config.logoutCookieName, resolveCookieDomain3(config));
+    expireCookie2(config.logoutCookieName, null);
   }
   async function logoutOutseta() {
     if (window.Outseta?.auth && typeof window.Outseta.auth.logout === "function") {
@@ -443,7 +474,7 @@ var AnvisningerAuthFlow = (() => {
   }
 
   // packages/auth-flow/src/index.js
-  var BUILD_TIME = true ? "2026-03-17T14:04:36.165Z" : null;
+  var BUILD_TIME = true ? "2026-03-17T14:29:08.495Z" : null;
   var DEFAULT_CONFIG = {
     sliderId: "slider-signup",
     cvrWorkerUrl: "https://anvisninger-cvr-dev.maxks.workers.dev/cvr",

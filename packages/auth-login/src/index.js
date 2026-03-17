@@ -42,9 +42,22 @@ function clearAuthStorage() {
   sessionStorage.clear();
 }
 
+function resolveCookieDomain(config) {
+  const hostname = window.location.hostname;
+  if (hostname === "anvisninger.dk" || hostname.endsWith(".anvisninger.dk")) {
+    return config.logoutCookieDomain;
+  }
+  return null;
+}
+
+function expireCookie(name, domain) {
+  const domainPart = domain ? `; domain=${domain}` : "";
+  document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/${domainPart}; Secure; SameSite=None;`;
+}
+
 function handleLogout(config) {
   clearAuthStorage();
-  document.cookie = `${config.logoutCookieName}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; domain=${config.logoutCookieDomain}; Secure; SameSite=None;`;
+  expireCookie(config.logoutCookieName, resolveCookieDomain(config));
   window.alert("Luk venligst alle vinduer for at logge helt ud!");
 }
 
