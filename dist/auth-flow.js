@@ -21,6 +21,7 @@ var AnvisningerAuthFlow = (() => {
   var index_exports = {};
   __export(index_exports, {
     default: () => index_default,
+    initOutsetaAuthCallback: () => initOutsetaAuthCallback,
     initOutsetaMagicLogin: () => initOutsetaMagicLogin,
     initOutsetaMagicLogout: () => initOutsetaMagicLogout,
     initSignupFlow: () => initSignupFlow,
@@ -82,6 +83,193 @@ var AnvisningerAuthFlow = (() => {
     });
   }
 
+  // packages/auth-callback/src/index.js
+  var DEFAULT_CALLBACK_CONFIG = {
+    loginReferrerPaths: ["/auth/login", "/log-ind", "/401", "/oprettelse/onboarding"],
+    loginRedirectPath: "/auth/login",
+    onboardingRedirectPath: "/oprettelse/onboarding",
+    upgradeRedirectPath: "/kampagne/opgrader",
+    overviewRedirectPath: "/oversigt",
+    errorRedirectPath: "/404",
+    planUidCookieName: "outsetaPlanUid",
+    cookieDomain: ".anvisninger.dk",
+    cookieDaysToExpire: 7,
+    useWebflowReady: false,
+    validPlanUids: [
+      "zWZLy6Qp",
+      "amR8RM9J",
+      "79O8x6WE",
+      "j9bn3w9n",
+      "zWZG31mp",
+      "LmJO1AQP",
+      "DQ25J6mV",
+      "wmj17oWV",
+      "pWrPoaQn",
+      "E9L7vZQw",
+      "y9gxX8WM",
+      "Rm88n5m4",
+      "L9P8AE9J",
+      "amRAV3WJ",
+      "4960R4mX",
+      "7ma8z1WE",
+      "4960KdmX",
+      "y9qDkqQA",
+      "dQGxko94",
+      "OW40EGWg",
+      "XQYOn4WP",
+      "wQX2vZWK",
+      "L9PMe6WJ",
+      "BWzE5N9E"
+    ]
+  };
+  function withDomReady(fn, useWebflowReady) {
+    if (useWebflowReady && window.Webflow && Array.isArray(window.Webflow)) {
+      window.Webflow.push(fn);
+      return;
+    }
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", fn, { once: true });
+      return;
+    }
+    fn();
+  }
+  function checkReferrer(referrerPaths) {
+    const referrer = document.referrer || "";
+    return referrerPaths.some((path) => referrer.includes(path));
+  }
+  function removeCallbackFlags() {
+    localStorage.removeItem("comingFromOpgrader");
+    localStorage.removeItem("planUpgrade");
+    localStorage.removeItem("hasLoggedIn");
+  }
+  function getCookie(name) {
+    const cookieParts = `; ${document.cookie}`.split(`; ${name}=`);
+    return cookieParts.length === 2 ? cookieParts.pop().split(";").shift() : null;
+  }
+  function setCookieWithExpiry(name, value, daysToExpire, cookieDomain) {
+    const now = /* @__PURE__ */ new Date();
+    now.setTime(now.getTime() + daysToExpire * 24 * 60 * 60 * 1e3);
+    const expires = `expires=${now.toUTCString()}`;
+    document.cookie = `${name}=${value};${expires};path=/;Secure;SameSite=None;domain=${cookieDomain}`;
+  }
+  function deleteCookie(name, cookieDomain) {
+    document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${cookieDomain}; Secure; SameSite=None`;
+    document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; Secure; SameSite=None`;
+  }
+  function updatePlanUidCookie(planUid, config) {
+    const existingPlanUid = getCookie(config.planUidCookieName);
+    if (existingPlanUid) {
+      deleteCookie(config.planUidCookieName, config.cookieDomain);
+    }
+    setCookieWithExpiry(
+      config.planUidCookieName,
+      planUid,
+      config.cookieDaysToExpire,
+      config.cookieDomain
+    );
+  }
+  function redirectToLoginWithFlag(flag, config) {
+    window.location.href = `${config.loginRedirectPath}#${flag}`;
+  }
+  function redirectToErrorPage(config, errorPath = config.errorRedirectPath) {
+    window.location.href = errorPath;
+  }
+  function redirectToPlan(planUid, config) {
+    if (config.validPlanUids.includes(planUid)) {
+      window.location.href = config.overviewRedirectPath;
+      return;
+    }
+    console.error(`[Callback] Invalid planUid: ${planUid}`);
+    redirectToErrorPage(config);
+  }
+  function handleExistingPlan(config) {
+    const existingPlanUid = getCookie(config.planUidCookieName);
+    if (existingPlanUid) {
+      redirectToPlan(existingPlanUid, config);
+      return;
+    }
+    redirectToLoginWithFlag("logged-in-false", config);
+  }
+  function handlePlanUpgrade(config) {
+    if (!window.Outseta || typeof window.Outseta.getUser !== "function") {
+      console.error("[Callback] Outseta.getUser is not available during plan upgrade.");
+      redirectToErrorPage(config);
+      return;
+    }
+    window.Outseta.getUser().then((profile) => {
+      const planUid = profile?.Account?.CurrentSubscription?.Plan?.Uid;
+      if (!planUid) {
+        console.error("[Callback] No planUid found during plan upgrade.");
+        redirectToErrorPage(config);
+        return;
+      }
+      updatePlanUidCookie(planUid, config);
+      removeCallbackFlags();
+      window.location.href = config.overviewRedirectPath;
+    }).catch((error) => {
+      console.error("[Callback] Error fetching user profile for plan upgrade:", error);
+      redirectToErrorPage(config);
+    });
+  }
+  function handleAccessTokenSet(jwt, config, opgrader, hasLoggedIn) {
+    const planUid = jwt?.["outseta:planUid"];
+    if (!planUid) {
+      console.error("[Callback] No planUid in JWT during login redirection.", jwt);
+      redirectToErrorPage(config);
+      return;
+    }
+    setCookieWithExpiry(
+      config.planUidCookieName,
+      planUid,
+      config.cookieDaysToExpire,
+      config.cookieDomain
+    );
+    if (hasLoggedIn === "false") {
+      removeCallbackFlags();
+      window.location.href = config.onboardingRedirectPath;
+      return;
+    }
+    if (opgrader === "true") {
+      removeCallbackFlags();
+      window.location.href = config.upgradeRedirectPath;
+      return;
+    }
+    redirectToPlan(planUid, config);
+  }
+  function handleLoginRedirection(config, opgrader, hasLoggedIn) {
+    if (!window.Outseta || typeof window.Outseta.on !== "function") {
+      console.error("[Callback] Outseta event API is not available during login redirection.");
+      redirectToErrorPage(config);
+      return;
+    }
+    window.Outseta.on("accessToken.set", (jwt) => {
+      if (!jwt) {
+        console.error("[Callback] No JWT received during login redirection.");
+        redirectToErrorPage(config);
+        return;
+      }
+      handleAccessTokenSet(jwt, config, opgrader, hasLoggedIn);
+    });
+  }
+  function initOutsetaAuthCallback(userConfig = {}) {
+    const config = { ...DEFAULT_CALLBACK_CONFIG, ...userConfig || {} };
+    withDomReady(() => {
+      const comingFromLoginOrBackup = checkReferrer(config.loginReferrerPaths);
+      const opgrader = localStorage.getItem("comingFromOpgrader");
+      const planUpgrade = localStorage.getItem("planUpgrade");
+      const hasLoggedIn = localStorage.getItem("hasLoggedIn");
+      if (comingFromLoginOrBackup) {
+        handleLoginRedirection(config, opgrader, hasLoggedIn);
+        return;
+      }
+      if (planUpgrade === "true") {
+        handlePlanUpgrade(config);
+        return;
+      }
+      handleExistingPlan(config);
+    }, config.useWebflowReady);
+  }
+
   // packages/auth-login/src/index.js
   var DEFAULT_LOGIN_CONFIG = {
     submitButtonId: "submit",
@@ -96,7 +284,7 @@ var AnvisningerAuthFlow = (() => {
     logoutCookieDomain: ".anvisninger.dk",
     useWebflowReady: false
   };
-  function withDomReady(fn, useWebflowReady) {
+  function withDomReady2(fn, useWebflowReady) {
     if (useWebflowReady && window.Webflow && Array.isArray(window.Webflow)) {
       window.Webflow.push(fn);
       return;
@@ -172,7 +360,7 @@ var AnvisningerAuthFlow = (() => {
   }
   function initOutsetaMagicLogin(userConfig = {}) {
     const config = { ...DEFAULT_LOGIN_CONFIG, ...userConfig || {} };
-    withDomReady(() => {
+    withDomReady2(() => {
       try {
         ensureMagic(config);
       } catch (error) {
@@ -198,7 +386,7 @@ var AnvisningerAuthFlow = (() => {
     logoutCookieDomain: ".anvisninger.dk",
     useWebflowReady: false
   };
-  function withDomReady2(fn, useWebflowReady) {
+  function withDomReady3(fn, useWebflowReady) {
     if (useWebflowReady && window.Webflow && Array.isArray(window.Webflow)) {
       window.Webflow.push(fn);
       return;
@@ -246,7 +434,7 @@ var AnvisningerAuthFlow = (() => {
     window.location.href = config.redirectPath;
   }
   function initOutsetaMagicLogout(userConfig = {}) {
-    withDomReady2(() => {
+    withDomReady3(() => {
       runOutsetaMagicLogout(userConfig).catch((error) => {
         console.error("[Logout] Failed:", error);
         window.alert("Der opstod et problem ved log ud. Pr\xF8v igen.");
@@ -255,7 +443,7 @@ var AnvisningerAuthFlow = (() => {
   }
 
   // packages/auth-flow/src/index.js
-  var BUILD_TIME = true ? "2026-03-17T13:56:43.046Z" : null;
+  var BUILD_TIME = true ? "2026-03-17T14:04:36.165Z" : null;
   var DEFAULT_CONFIG = {
     sliderId: "slider-signup",
     cvrWorkerUrl: "https://anvisninger-cvr-dev.maxks.workers.dev/cvr",
@@ -319,7 +507,7 @@ var AnvisningerAuthFlow = (() => {
     isCritical = true;
     console.warn("[Flow] Critical error detected - form is broken");
   }
-  function withDomReady3(fn, useWebflowReady) {
+  function withDomReady4(fn, useWebflowReady) {
     if (useWebflowReady && window.Webflow && Array.isArray(window.Webflow)) {
       window.Webflow.push(fn);
       return;
@@ -727,7 +915,7 @@ var AnvisningerAuthFlow = (() => {
     } else {
       console.log("[Flow] build time unknown");
     }
-    withDomReady3(() => {
+    withDomReady4(() => {
       const sliderEl = document.getElementById(config.sliderId);
       if (!sliderEl) {
         console.error("[Flow] slider not found:", config.sliderId);

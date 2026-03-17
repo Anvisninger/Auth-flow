@@ -17,10 +17,4 @@ await build({
   outfile: "dist/auth-flow.js",
 });
 
-await build({
-  ...commonConfig,
-  globalName: "AnvisningerSignupFlow",
-  outfile: "dist/signup-flow.js",
-});
-
-console.log("Built auth-flow.js and signup-flow.js at", buildTime);
+console.log("Built auth-flow.js at", buildTime);

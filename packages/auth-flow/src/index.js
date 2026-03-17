@@ -1,6 +1,7 @@
 const BUILD_TIME = typeof __BUILD_TIME__ !== "undefined" ? __BUILD_TIME__ : null;
 
 import { generateTransactionId, pushGAPurchaseEvent, setupOutsetaCompletionTracking } from "./ga-tracking.js";
+import { initOutsetaAuthCallback } from "../../auth-callback/src/index.js";
 import { initOutsetaMagicLogin } from "../../auth-login/src/index.js";
 import { initOutsetaMagicLogout } from "../../auth-logout/src/index.js";
 
@@ -1169,5 +1170,5 @@ export function initSignupFlow(userConfig = {}) {
   };
 }
 
-export { initOutsetaMagicLogin, initOutsetaMagicLogout };
+export { initOutsetaAuthCallback, initOutsetaMagicLogin, initOutsetaMagicLogout };
 export default initSignupFlow;

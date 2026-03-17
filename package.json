@@ -3,6 +3,7 @@
   "private": true,
   "workspaces": [
     "packages/auth-flow",
+    "packages/auth-callback",
     "packages/auth-login",
     "packages/auth-logout",
     "packages/workers/*"
