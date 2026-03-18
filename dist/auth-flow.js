@@ -304,6 +304,10 @@ var AnvisningerAuthFlow = (() => {
     errorElementId: "errorTrue",
     logoutCookieName: "outsetaPlanUid",
     logoutCookieDomain: ".anvisninger.dk",
+    emailCheckWorkerUrl: "https://anvisninger-outseta-planinfo.maxks.workers.dev/check-email",
+    emailCheckTimeoutMs: 8e3,
+    signupPath: "/oprettelse/opret-abonnement",
+    redirectToSignupIfEmailNotFound: true,
     useWebflowReady: false
   };
   function withDomReady2(fn, useWebflowReady) {
@@ -325,6 +329,53 @@ var AnvisningerAuthFlow = (() => {
   }
   function isValidEmail(email) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  }
+  async function fetchWithTimeout(url, timeoutMs, options = {}) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal
+      });
+      const contentType = response.headers.get("content-type") || "";
+      const data = contentType.includes("application/json") ? await response.json() : null;
+      if (!response.ok) {
+        const message = data?.error || `HTTP ${response.status}`;
+        const error = new Error(message);
+        error.status = response.status;
+        throw error;
+      }
+      return data;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+  async function checkEmailExistsForLogin(email, config) {
+    if (!config.emailCheckWorkerUrl || !email || !isValidEmail(email)) {
+      return { checked: false, exists: true };
+    }
+    const url = `${config.emailCheckWorkerUrl}?email=${encodeURIComponent(email)}`;
+    try {
+      const data = await fetchWithTimeout(url, config.emailCheckTimeoutMs, {
+        headers: { Accept: "application/json" }
+      });
+      return {
+        checked: true,
+        exists: Boolean(data?.exists)
+      };
+    } catch (error) {
+      console.warn("[Login] email pre-check failed, proceeding with Magic login:", error);
+      return { checked: true, exists: true, error };
+    }
+  }
+  function redirectToSignup(email, config) {
+    if (!config.redirectToSignupIfEmailNotFound || !config.signupPath) {
+      return;
+    }
+    const signupUrl = new URL(config.signupPath, window.location.origin);
+    signupUrl.searchParams.set("email", email);
+    window.location.href = signupUrl.toString();
   }
   function clearAuthStorage() {
     localStorage.clear();
@@ -359,9 +410,63 @@ var AnvisningerAuthFlow = (() => {
       displayElement(config.errorElementId);
     }
   }
+  function getMagicErrorCode(error) {
+    if (!error) {
+      return null;
+    }
+    if (typeof error.code === "number" || typeof error.code === "string") {
+      return error.code;
+    }
+    return null;
+  }
+  function isMagicError(error) {
+    if (!error) {
+      return false;
+    }
+    const code = getMagicErrorCode(error);
+    if (typeof code === "number" && code < 0) {
+      return true;
+    }
+    const name = String(error.name || "").toLowerCase();
+    const message = String(error.message || "").toLowerCase();
+    return name.includes("rpcerror") || name.includes("sdkerror") || message.includes("magic") || message.includes("otp") || message.includes("id token");
+  }
+  function getMagicUserErrorMessage(error) {
+    const code = getMagicErrorCode(error);
+    const codeAsText = String(code || "").toLowerCase();
+    const message = String(error?.message || "").toLowerCase();
+    if (code === -10003 || codeAsText.includes("useralreadyloggedin") || message.includes("already logged in")) {
+      return "Du er allerede logget ind. Opdater siden og pr\xF8v igen.";
+    }
+    if (codeAsText.includes("magiclinkexpired") || message.includes("expired")) {
+      return "Koden er udl\xF8bet. Start login igen for at f\xE5 en ny kode.";
+    }
+    if (codeAsText.includes("magiclinkratelimited") || message.includes("rate") || message.includes("too many")) {
+      return "For mange loginfors\xF8g. Vent et \xF8jeblik og pr\xF8v igen.";
+    }
+    if (codeAsText.includes("invalid") || message.includes("invalid otp") || message.includes("invalid code")) {
+      return "Koden er ugyldig. Tjek koden i e-mailen og pr\xF8v igen.";
+    }
+    if (codeAsText.includes("accessdeniedtouser") || code === -10011 || message.includes("access denied")) {
+      return "Adgang afvist. Kontakt support for hj\xE6lp.";
+    }
+    if (codeAsText.includes("missingapikey") || message.includes("api key")) {
+      return "Login kan ikke startes lige nu. Kontakt support for hj\xE6lp.";
+    }
+    return null;
+  }
   function handleLoginError(error) {
     console.error("Error while logging in:", error);
-    window.alert(`Der er opst\xE5et et problem: ${error?.message || error} Venligst kontakt support.`);
+    if (isMagicError(error)) {
+      const message = getMagicUserErrorMessage(error) || "Der opstod en loginfejl. Pr\xF8v igen om lidt.";
+      window.alert(message);
+      return;
+    }
+    if (String(error?.message || "").toLowerCase().includes("outseta")) {
+      window.alert("Login lykkedes ikke. Pr\xF8v igen. Kontakt support, hvis fejlen forts\xE6tter.");
+      return;
+    }
+    window.alert("Der opstod et teknisk problem. Pr\xF8v igen. Kontakt support, hvis fejlen forts\xE6tter.");
   }
   function ensureMagic(config) {
     if (window.magic) {
@@ -375,14 +480,30 @@ var AnvisningerAuthFlow = (() => {
   }
   async function handleLogin(event, config) {
     event.preventDefault();
+    const submitButton = document.getElementById(config.submitButtonId);
+    if (submitButton) {
+      submitButton.disabled = true;
+    }
     const emailInput = document.getElementById(config.emailInputId);
     const email = (emailInput?.value || "").trim().toLowerCase();
     if (!email || !isValidEmail(email)) {
       window.alert("Indtast venligst en gyldig e-mailadresse.");
+      if (submitButton) {
+        submitButton.disabled = false;
+      }
       return;
     }
     if (!window.Outseta || typeof window.Outseta.setMagicLinkIdToken !== "function" || typeof window.Outseta.getUser !== "function") {
       throw new Error("Outseta er ikke tilg\xE6ngelig.");
+    }
+    const emailCheckResult = await checkEmailExistsForLogin(email, config);
+    if (emailCheckResult.checked && !emailCheckResult.exists) {
+      window.alert("Vi kunne ikke finde en konto med denne e-mail. Forts\xE6t til oprettelse.");
+      if (submitButton) {
+        submitButton.disabled = false;
+      }
+      redirectToSignup(email, config);
+      return;
     }
     const magic = ensureMagic(config);
     const idToken = await magic.auth.loginWithEmailOTP({ email });
@@ -405,7 +526,10 @@ var AnvisningerAuthFlow = (() => {
         return;
       }
       submitButton.addEventListener("click", (event) => {
-        handleLogin(event, config).catch(handleLoginError);
+        handleLogin(event, config).catch((error) => {
+          handleLoginError(error);
+          submitButton.disabled = false;
+        });
       });
       handleURLActions(config);
     }, config.useWebflowReady);
@@ -487,7 +611,7 @@ var AnvisningerAuthFlow = (() => {
   }
 
   // packages/auth-flow/src/index.js
-  var BUILD_TIME = true ? "2026-03-17T14:41:14.585Z" : null;
+  var BUILD_TIME = true ? "2026-03-18T14:01:54.259Z" : null;
   var DEFAULT_CONFIG = {
     sliderId: "slider-signup",
     cvrWorkerUrl: "https://anvisninger-cvr-dev.maxks.workers.dev/cvr",
@@ -799,7 +923,7 @@ var AnvisningerAuthFlow = (() => {
     if (state.personType === "organisation" && state.subscriptionType === "free") return "contact";
     return "invoicing";
   }
-  async function fetchWithTimeout(url, timeoutMs, options) {
+  async function fetchWithTimeout2(url, timeoutMs, options) {
     const controller = new AbortController();
     const t = setTimeout(() => controller.abort(), timeoutMs || 12e3);
     try {
@@ -838,18 +962,18 @@ var AnvisningerAuthFlow = (() => {
   }
   async function fetchCVR(cvr, config) {
     const url = config.cvrWorkerUrl + "?cvr=" + encodeURIComponent(cvr);
-    return fetchWithTimeout(url, config.timeouts.cvrMs, { headers: { Accept: "application/json" } });
+    return fetchWithTimeout2(url, config.timeouts.cvrMs, { headers: { Accept: "application/json" } });
   }
   async function fetchPlanInfoByEmployees(employees, config) {
     const url = config.planWorkerUrl + "?employees=" + encodeURIComponent(String(employees));
-    return fetchWithTimeout(url, config.timeouts.planMs, { headers: { Accept: "application/json" } });
+    return fetchWithTimeout2(url, config.timeouts.planMs, { headers: { Accept: "application/json" } });
   }
   async function checkEmailExists(email, config) {
     if (!email || !isValidEmail2(email)) return { exists: false };
     const baseUrl = config.emailCheckWorkerUrl ? config.emailCheckWorkerUrl : config.planWorkerUrl.replace(/\/plans$/, "/check-email");
     const url = baseUrl + "?email=" + encodeURIComponent(email);
     try {
-      const res = await fetchWithTimeout(url, config.emailCheckTimeoutMs, {
+      const res = await fetchWithTimeout2(url, config.emailCheckTimeoutMs, {
         headers: { Accept: "application/json" }
       });
       return res;

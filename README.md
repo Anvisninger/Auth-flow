@@ -1,5 +1,13 @@
 # Auth Flow
 
+## Public Documentation Scope
+
+This README is intentionally limited to public-safe integration and architecture information.
+
+- Included: integration snippets, package structure, browser API, high-level flow diagrams.
+- Excluded: operational secrets, internal troubleshooting notes, deployment credentials, and internal security procedures.
+- Internal-only runbook is maintained locally and not committed to this repository.
+
 ## Architecture
 
 ```mermaid
@@ -248,6 +256,35 @@ Before `</body>`:
     AnvisningerAuthFlow.initOutsetaAuthCallback();
 </script>
 ```
+
+## Magic Passwordless Login
+
+The login page uses Magic SDK for passwordless authentication via email OTP (one-time passcode).
+
+**User Experience:**
+1. User enters email address
+2. Email check runs **before** sending OTP to verify account exists
+   - If no account: user is directed to signup
+   - If account exists: OTP is sent
+3. User enters OTP code
+4. Error messages are clear and guide user actions (e.g., "Code has expired. Start login again to get a new code.")
+
+**For integrators:**
+- Magic SDK must be loaded from CDN: `https://cdn.jsdelivr.net/npm/magic-sdk/dist/magic.js`
+- Auth bundle handles OTP submission and error guidance automatically
+- Magic errors are translated to Danish user messages with actionable guidance
+
+## Rate Limiting
+
+All worker endpoints apply progressive rate limiting to protect against abuse:
+
+- **Email checks (login pre-check):** Allows 2 free checks, then applies escalating cooldowns for subsequent requests
+  - This permits users to verify 2-4 different email addresses when unsure which they signed up with
+  - Rapid enumeration attempts are slowed by progressive delays
+
+- **Plan lookups and CVR queries:** Protected with standard per-client rate limits
+
+**User impact:** Legitimate users won't encounter rate limits. Only abuse patterns (many queries per minute) trigger cooldowns.
 
 ## Environment Notes
 

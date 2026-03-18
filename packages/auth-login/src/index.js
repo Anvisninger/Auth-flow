@@ -9,6 +9,10 @@ const DEFAULT_LOGIN_CONFIG = {
   errorElementId: "errorTrue",
   logoutCookieName: "outsetaPlanUid",
   logoutCookieDomain: ".anvisninger.dk",
+  emailCheckWorkerUrl: "https://anvisninger-outseta-planinfo.maxks.workers.dev/check-email",
+  emailCheckTimeoutMs: 8000,
+  signupPath: "/oprettelse/opret-abonnement",
+  redirectToSignupIfEmailNotFound: true,
   useWebflowReady: false,
 };
 
@@ -35,6 +39,64 @@ function displayElement(elementId) {
 
 function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+async function fetchWithTimeout(url, timeoutMs, options = {}) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+
+    const contentType = response.headers.get("content-type") || "";
+    const data = contentType.includes("application/json") ? await response.json() : null;
+
+    if (!response.ok) {
+      const message = data?.error || `HTTP ${response.status}`;
+      const error = new Error(message);
+      error.status = response.status;
+      throw error;
+    }
+
+    return data;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function checkEmailExistsForLogin(email, config) {
+  if (!config.emailCheckWorkerUrl || !email || !isValidEmail(email)) {
+    return { checked: false, exists: true };
+  }
+
+  const url = `${config.emailCheckWorkerUrl}?email=${encodeURIComponent(email)}`;
+
+  try {
+    const data = await fetchWithTimeout(url, config.emailCheckTimeoutMs, {
+      headers: { Accept: "application/json" },
+    });
+
+    return {
+      checked: true,
+      exists: Boolean(data?.exists),
+    };
+  } catch (error) {
+    console.warn("[Login] email pre-check failed, proceeding with Magic login:", error);
+    return { checked: true, exists: true, error };
+  }
+}
+
+function redirectToSignup(email, config) {
+  if (!config.redirectToSignupIfEmailNotFound || !config.signupPath) {
+    return;
+  }
+
+  const signupUrl = new URL(config.signupPath, window.location.origin);
+  signupUrl.searchParams.set("email", email);
+  window.location.href = signupUrl.toString();
 }
 
 function clearAuthStorage() {
@@ -76,9 +138,86 @@ function handleURLActions(config) {
   }
 }
 
+function getMagicErrorCode(error) {
+  if (!error) {
+    return null;
+  }
+
+  if (typeof error.code === "number" || typeof error.code === "string") {
+    return error.code;
+  }
+
+  return null;
+}
+
+function isMagicError(error) {
+  if (!error) {
+    return false;
+  }
+
+  const code = getMagicErrorCode(error);
+  if (typeof code === "number" && code < 0) {
+    return true;
+  }
+
+  const name = String(error.name || "").toLowerCase();
+  const message = String(error.message || "").toLowerCase();
+  return (
+    name.includes("rpcerror") ||
+    name.includes("sdkerror") ||
+    message.includes("magic") ||
+    message.includes("otp") ||
+    message.includes("id token")
+  );
+}
+
+function getMagicUserErrorMessage(error) {
+  const code = getMagicErrorCode(error);
+  const codeAsText = String(code || "").toLowerCase();
+  const message = String(error?.message || "").toLowerCase();
+
+  if (code === -10003 || codeAsText.includes("useralreadyloggedin") || message.includes("already logged in")) {
+    return "Du er allerede logget ind. Opdater siden og prøv igen.";
+  }
+
+  if (codeAsText.includes("magiclinkexpired") || message.includes("expired")) {
+    return "Koden er udløbet. Start login igen for at få en ny kode.";
+  }
+
+  if (codeAsText.includes("magiclinkratelimited") || message.includes("rate") || message.includes("too many")) {
+    return "For mange loginforsøg. Vent et øjeblik og prøv igen.";
+  }
+
+  if (codeAsText.includes("invalid") || message.includes("invalid otp") || message.includes("invalid code")) {
+    return "Koden er ugyldig. Tjek koden i e-mailen og prøv igen.";
+  }
+
+  if (codeAsText.includes("accessdeniedtouser") || code === -10011 || message.includes("access denied")) {
+    return "Adgang afvist. Kontakt support for hjælp.";
+  }
+
+  if (codeAsText.includes("missingapikey") || message.includes("api key")) {
+    return "Login kan ikke startes lige nu. Kontakt support for hjælp.";
+  }
+
+  return null;
+}
+
 function handleLoginError(error) {
   console.error("Error while logging in:", error);
-  window.alert(`Der er opstået et problem: ${error?.message || error} Venligst kontakt support.`);
+
+  if (isMagicError(error)) {
+    const message = getMagicUserErrorMessage(error) || "Der opstod en loginfejl. Prøv igen om lidt.";
+    window.alert(message);
+    return;
+  }
+
+  if (String(error?.message || "").toLowerCase().includes("outseta")) {
+    window.alert("Login lykkedes ikke. Prøv igen. Kontakt support, hvis fejlen fortsætter.");
+    return;
+  }
+
+  window.alert("Der opstod et teknisk problem. Prøv igen. Kontakt support, hvis fejlen fortsætter.");
 }
 
 function ensureMagic(config) {
@@ -97,15 +236,33 @@ function ensureMagic(config) {
 async function handleLogin(event, config) {
   event.preventDefault();
 
+  const submitButton = document.getElementById(config.submitButtonId);
+  if (submitButton) {
+    submitButton.disabled = true;
+  }
+
   const emailInput = document.getElementById(config.emailInputId);
   const email = (emailInput?.value || "").trim().toLowerCase();
   if (!email || !isValidEmail(email)) {
     window.alert("Indtast venligst en gyldig e-mailadresse.");
+    if (submitButton) {
+      submitButton.disabled = false;
+    }
     return;
   }
 
   if (!window.Outseta || typeof window.Outseta.setMagicLinkIdToken !== "function" || typeof window.Outseta.getUser !== "function") {
     throw new Error("Outseta er ikke tilgængelig.");
+  }
+
+  const emailCheckResult = await checkEmailExistsForLogin(email, config);
+  if (emailCheckResult.checked && !emailCheckResult.exists) {
+    window.alert("Vi kunne ikke finde en konto med denne e-mail. Fortsæt til oprettelse.");
+    if (submitButton) {
+      submitButton.disabled = false;
+    }
+    redirectToSignup(email, config);
+    return;
   }
 
   const magic = ensureMagic(config);
@@ -133,7 +290,10 @@ export function initOutsetaMagicLogin(userConfig = {}) {
     }
 
     submitButton.addEventListener("click", (event) => {
-      handleLogin(event, config).catch(handleLoginError);
+      handleLogin(event, config).catch((error) => {
+        handleLoginError(error);
+        submitButton.disabled = false;
+      });
     });
 
     handleURLActions(config);

@@ -8,8 +8,9 @@ function getCorsHeaders(origin) {
   if (ALLOWED_ORIGINS.includes(origin)) {
     return {
       "Access-Control-Allow-Origin": origin,
-      "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      "Access-Control-Allow-Methods": "GET,OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+      Vary: "Origin",
     };
   }
   return {};
@@ -24,14 +25,18 @@ export default {
     if (!ALLOWED_ORIGINS.includes(origin)) {
       return new Response(JSON.stringify({ error: "Origin not allowed" }), {
         status: 403,
-        headers: { "Content-Type": "application/json" },
+        headers: withSecurityHeaders({ "Content-Type": "application/json" }),
       });
     }
 
     const corsHeaders = getCorsHeaders(origin);
 
+    if (request.method !== "GET" && request.method !== "OPTIONS") {
+      return json({ error: "Method not allowed" }, 405, withNoStore(corsHeaders));
+    }
+
     if (request.method === "OPTIONS") {
-      return new Response(null, { headers: corsHeaders });
+      return new Response(null, { headers: withSecurityHeaders(corsHeaders) });
     }
 
     if (url.pathname === "/plans") {
@@ -42,7 +47,10 @@ export default {
       return handleCheckEmail(request, url, env, corsHeaders, ctx);
     }
 
-    return new Response("Not found", { status: 404, headers: corsHeaders });
+    return new Response("Not found", {
+      status: 404,
+      headers: withSecurityHeaders(corsHeaders),
+    });
   },
 };
 
@@ -203,19 +211,81 @@ function getClientFingerprint(request) {
 async function isRateLimited(request, ctx) {
   const fingerprint = getClientFingerprint(request);
   const cache = caches.default;
-  const cacheKey = new Request(`https://internal.anvisninger/check-email-rate-limit/${encodeURIComponent(fingerprint)}`);
-  const existing = await cache.match(cacheKey);
-  if (existing) {
+
+  // Counter key tracks total requests per fingerprint (1-hour window)
+  const counterKey = new Request(
+    `https://internal.anvisninger/check-email-counter/${encodeURIComponent(fingerprint)}`
+  );
+
+  // Last-request-time key tracks when the user last made a request
+  const lastRequestKey = new Request(
+    `https://internal.anvisninger/check-email-last-request/${encodeURIComponent(fingerprint)}`
+  );
+
+  const [counterResponse, lastRequestResponse] = await Promise.all([
+    cache.match(counterKey),
+    cache.match(lastRequestKey),
+  ]);
+
+  let count = 0;
+  if (counterResponse) {
+    const text = await counterResponse.text();
+    count = parseInt(text, 10) || 0;
+  }
+
+  // Increment counter for this request
+  count++;
+
+  // Progressive backoff thresholds:
+  // - Checks 1-2: No rate limit (free checks)
+  // - Checks 3-4: 5-second cooldown (allow but with delay)
+  // - Checks 5-10: 15-second cooldown (escalating)
+  // - Checks 11+: 60-second cooldown (hard limit)
+
+  let shouldBlock = false;
+  let cooldownSeconds = 0;
+
+  if (count > 2 && count <= 4) {
+    cooldownSeconds = 5;
+  } else if (count > 4 && count <= 10) {
+    cooldownSeconds = 15;
+  } else if (count > 10) {
+    cooldownSeconds = 60;
+  }
+
+  // Check if user is in cooldown period
+  if (cooldownSeconds > 0 && lastRequestResponse) {
+    const lastRequestTime = parseInt(await lastRequestResponse.text(), 10);
+    const now = Date.now();
+    const elapsedSeconds = (now - lastRequestTime) / 1000;
+
+    if (elapsedSeconds < cooldownSeconds) {
+      shouldBlock = true;
+    }
+  }
+
+  if (shouldBlock) {
     return true;
   }
 
-  const marker = new Response("1", {
+  // Update cache: increment counter (1-hour TTL) and update last-request time (cooldown TTL)
+  const counterMarker = new Response(String(count), {
     headers: {
-      "Cache-Control": "max-age=3",
+      "Cache-Control": "max-age=3600", // 1 hour
     },
   });
 
-  const write = cache.put(cacheKey, marker);
+  const lastRequestMarker = new Response(String(Date.now()), {
+    headers: {
+      "Cache-Control": `max-age=${cooldownSeconds || 60}`, // At least 60s to avoid duplicate updates
+    },
+  });
+
+  const write = Promise.all([
+    cache.put(counterKey, counterMarker),
+    cache.put(lastRequestKey, lastRequestMarker),
+  ]);
+
   if (ctx && typeof ctx.waitUntil === "function") {
     ctx.waitUntil(write);
   } else {
@@ -229,6 +299,16 @@ function withNoStore(headers) {
   return {
     ...headers,
     "Cache-Control": "no-store",
+  };
+}
+
+function withSecurityHeaders(headers = {}) {
+  return {
+    ...headers,
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+    "X-Frame-Options": "DENY",
+    "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
   };
 }
 
@@ -247,6 +327,6 @@ async function fetchOutseta(endpoint, env) {
 function json(obj, status = 200, headers = {}) {
   return new Response(JSON.stringify(obj), {
     status,
-    headers: { "Content-Type": "application/json", ...headers },
+    headers: withSecurityHeaders({ "Content-Type": "application/json", ...headers }),
   });
 }

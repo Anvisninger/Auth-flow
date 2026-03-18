@@ -3,4 +3,4 @@ main = "src/index.js"
 compatibility_date = "2026-02-13"
 
 account_id = "753029c7161e218cbd19649cd4519c6a"
-workers_dev = true
+workers_dev = false

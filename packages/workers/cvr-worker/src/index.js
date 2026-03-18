@@ -24,18 +24,27 @@ export default {
     if (!ALLOWED_ORIGINS.includes(origin)) {
       return new Response(JSON.stringify({ error: "Origin not allowed" }), {
         status: 403,
-        headers: { "Content-Type": "application/json" },
+        headers: withSecurityHeaders({ "Content-Type": "application/json" }),
       });
     }
 
     const cors = getCorsHeaders(origin);
 
-    if (request.method === "OPTIONS") return new Response(null, { headers: cors });
+    if (request.method !== "GET" && request.method !== "OPTIONS") {
+      return json({ error: "Method not allowed" }, 405, cors);
+    }
 
-    if (url.pathname !== "/cvr") return new Response("Not found", { status: 404, headers: cors });
+    if (request.method === "OPTIONS") {
+      return new Response(null, { headers: withSecurityHeaders(cors) });
+    }
+
+    if (url.pathname !== "/cvr") {
+      return new Response("Not found", { status: 404, headers: withSecurityHeaders(cors) });
+    }
 
     const cvr = (url.searchParams.get("cvr") || "").replace(/\s+/g, "");
-    const debug = url.searchParams.get("debug") === "1";
+    const debugRequested = url.searchParams.get("debug") === "1";
+    const debug = debugRequested && env.ALLOW_DEBUG === "1";
 
     if (!/^\d{8}$/.test(cvr)) {
       return json({ error: "CVR-nummeret skal være præcis 8 cifre." }, 400, cors);
@@ -277,7 +286,7 @@ function formatDkAddress(a) {
 function json(obj, status = 200, headers = {}) {
   return new Response(JSON.stringify(obj), {
     status,
-    headers: { "Content-Type": "application/json", ...headers },
+    headers: withSecurityHeaders({ "Content-Type": "application/json", ...headers }),
   });
 }
 
@@ -286,4 +295,14 @@ function withCors(response, cors) {
   const h = new Headers(response.headers);
   for (const [k, v] of Object.entries(cors)) h.set(k, v);
   return new Response(response.body, { status: response.status, headers: h });
+}
+
+function withSecurityHeaders(headers = {}) {
+  return {
+    ...headers,
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+    "X-Frame-Options": "DENY",
+    "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+  };
 }
