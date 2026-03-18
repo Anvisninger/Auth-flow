@@ -7,6 +7,7 @@ const DEFAULT_LOGIN_CONFIG = {
   postSignUpElementId: "postSignUp",
   loggedInFalseElementId: "loggedInFalse",
   errorElementId: "errorTrue",
+  errorBoxId: "errorbox",
   logoutCookieName: "outsetaPlanUid",
   logoutCookieDomain: ".anvisninger.dk",
   emailCheckWorkerUrl: "https://anvisninger-outseta-planinfo.maxks.workers.dev/check-email",
@@ -34,6 +35,35 @@ function displayElement(elementId) {
   const element = document.getElementById(elementId);
   if (element) {
     element.style.display = "block";
+  }
+}
+
+function hideElement(elementId) {
+  const element = document.getElementById(elementId);
+  if (element) {
+    element.style.display = "none";
+  }
+}
+
+function displayErrorMessage(message, config) {
+  const errorBox = document.getElementById(config.errorBoxId);
+  if (!errorBox) {
+    console.warn("[Login] error box not found:", config.errorBoxId);
+    return;
+  }
+
+  // Set the error message text
+  const errorContent = errorBox.querySelector("p") || errorBox;
+  errorContent.textContent = message;
+
+  // Show the error box
+  errorBox.style.display = "block";
+}
+
+function clearErrorMessage(config) {
+  const errorBox = document.getElementById(config.errorBoxId);
+  if (errorBox) {
+    errorBox.style.display = "none";
   }
 }
 
@@ -171,6 +201,29 @@ function isMagicError(error) {
   );
 }
 
+function isMagicCancellation(error) {
+  if (!error) {
+    return false;
+  }
+
+  const code = getMagicErrorCode(error);
+  const codeAsText = String(code || "").toLowerCase();
+  const name = String(error.name || "").toLowerCase();
+  const message = String(error.message || "").toLowerCase();
+
+  return (
+    code === -10001 ||
+    codeAsText.includes("userCancelled") ||
+    codeAsText.includes("cancelled") ||
+    name.includes("userCancelled") ||
+    name.includes("cancelled") ||
+    message.includes("user cancelled") ||
+    message.includes("user closed") ||
+    message.includes("modal closed") ||
+    message.includes("aborted")
+  );
+}
+
 function getMagicUserErrorMessage(error) {
   const code = getMagicErrorCode(error);
   const codeAsText = String(code || "").toLowerCase();
@@ -188,8 +241,9 @@ function getMagicUserErrorMessage(error) {
     return "For mange loginforsøg. Vent et øjeblik og prøv igen.";
   }
 
+  // Invalid code is handled by Magic's modal, no additional alert needed
   if (codeAsText.includes("invalid") || message.includes("invalid otp") || message.includes("invalid code")) {
-    return "Koden er ugyldig. Tjek koden i e-mailen og prøv igen.";
+    return null;
   }
 
   if (codeAsText.includes("accessdeniedtouser") || code === -10011 || message.includes("access denied")) {
@@ -203,21 +257,28 @@ function getMagicUserErrorMessage(error) {
   return null;
 }
 
-function handleLoginError(error) {
+function handleLoginError(error, config) {
   console.error("Error while logging in:", error);
 
+  // User intentionally closed the modal - no error message needed
+  if (isMagicCancellation(error)) {
+    return;
+  }
+
   if (isMagicError(error)) {
-    const message = getMagicUserErrorMessage(error) || "Der opstod en loginfejl. Prøv igen om lidt.";
-    window.alert(message);
+    const message = getMagicUserErrorMessage(error);
+    if (message) {
+      displayErrorMessage(message, config);
+    }
     return;
   }
 
   if (String(error?.message || "").toLowerCase().includes("outseta")) {
-    window.alert("Login lykkedes ikke. Prøv igen. Kontakt support, hvis fejlen fortsætter.");
+    displayErrorMessage("Login lykkedes ikke. Prøv igen. Kontakt support, hvis fejlen fortsætter.", config);
     return;
   }
 
-  window.alert("Der opstod et teknisk problem. Prøv igen. Kontakt support, hvis fejlen fortsætter.");
+  displayErrorMessage("Der opstod et teknisk problem. Prøv igen. Kontakt support, hvis fejlen fortsætter.", config);
 }
 
 function ensureMagic(config) {
@@ -236,6 +297,9 @@ function ensureMagic(config) {
 async function handleLogin(event, config) {
   event.preventDefault();
 
+  // Clear any previous error messages
+  clearErrorMessage(config);
+
   const submitButton = document.getElementById(config.submitButtonId);
   if (submitButton) {
     submitButton.disabled = true;
@@ -244,7 +308,7 @@ async function handleLogin(event, config) {
   const emailInput = document.getElementById(config.emailInputId);
   const email = (emailInput?.value || "").trim().toLowerCase();
   if (!email || !isValidEmail(email)) {
-    window.alert("Indtast venligst en gyldig e-mailadresse.");
+    displayErrorMessage("Indtast venligst en gyldig e-mailadresse.", config);
     if (submitButton) {
       submitButton.disabled = false;
     }
@@ -257,7 +321,7 @@ async function handleLogin(event, config) {
 
   const emailCheckResult = await checkEmailExistsForLogin(email, config);
   if (emailCheckResult.checked && !emailCheckResult.exists) {
-    window.alert("Vi kunne ikke finde en konto med denne e-mail. Fortsæt til oprettelse.");
+    displayErrorMessage("Vi kunne ikke finde en konto med denne e-mail. Fortsæt til oprettelse.", config);
     if (submitButton) {
       submitButton.disabled = false;
     }
@@ -280,7 +344,7 @@ export function initOutsetaMagicLogin(userConfig = {}) {
     try {
       ensureMagic(config);
     } catch (error) {
-      handleLoginError(error);
+      handleLoginError(error, config);
     }
 
     const submitButton = document.getElementById(config.submitButtonId);
@@ -291,7 +355,9 @@ export function initOutsetaMagicLogin(userConfig = {}) {
 
     submitButton.addEventListener("click", (event) => {
       handleLogin(event, config).catch((error) => {
-        handleLoginError(error);
+        if (!isMagicCancellation(error)) {
+          handleLoginError(error, config);
+        }
         submitButton.disabled = false;
       });
     });

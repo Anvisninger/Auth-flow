@@ -266,13 +266,18 @@ The login page uses Magic SDK for passwordless authentication via email OTP (one
 2. Email check runs **before** sending OTP to verify account exists
    - If no account: user is directed to signup
    - If account exists: OTP is sent
-3. User enters OTP code
-4. Error messages are clear and guide user actions (e.g., "Code has expired. Start login again to get a new code.")
+3. User enters OTP code in Magic modal
+4. Error messages display in the error box on the page with clear guidance:
+   - User-actionable errors (e.g., expired code) guide users to retry
+   - System errors point users to support
+   - Closing the Magic modal is treated as an intentional choice (no error shown)
 
 **For integrators:**
 - Magic SDK must be loaded from CDN: `https://cdn.jsdelivr.net/npm/magic-sdk/dist/magic.js`
 - Auth bundle handles OTP submission and error guidance automatically
-- Magic errors are translated to Danish user messages with actionable guidance
+- Error messages display in an element with ID `errorbox` (required on login page)
+- Magic's OTP modal handles invalid code feedback automatically in Danish
+- Submit button is disabled during the Magic flow to prevent double-submission
 
 ## Rate Limiting
 

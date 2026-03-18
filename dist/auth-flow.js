@@ -302,6 +302,7 @@ var AnvisningerAuthFlow = (() => {
     postSignUpElementId: "postSignUp",
     loggedInFalseElementId: "loggedInFalse",
     errorElementId: "errorTrue",
+    errorBoxId: "errorbox",
     logoutCookieName: "outsetaPlanUid",
     logoutCookieDomain: ".anvisninger.dk",
     emailCheckWorkerUrl: "https://anvisninger-outseta-planinfo.maxks.workers.dev/check-email",
@@ -325,6 +326,22 @@ var AnvisningerAuthFlow = (() => {
     const element = document.getElementById(elementId);
     if (element) {
       element.style.display = "block";
+    }
+  }
+  function displayErrorMessage(message, config) {
+    const errorBox = document.getElementById(config.errorBoxId);
+    if (!errorBox) {
+      console.warn("[Login] error box not found:", config.errorBoxId);
+      return;
+    }
+    const errorContent = errorBox.querySelector("p") || errorBox;
+    errorContent.textContent = message;
+    errorBox.style.display = "block";
+  }
+  function clearErrorMessage(config) {
+    const errorBox = document.getElementById(config.errorBoxId);
+    if (errorBox) {
+      errorBox.style.display = "none";
     }
   }
   function isValidEmail(email) {
@@ -431,6 +448,16 @@ var AnvisningerAuthFlow = (() => {
     const message = String(error.message || "").toLowerCase();
     return name.includes("rpcerror") || name.includes("sdkerror") || message.includes("magic") || message.includes("otp") || message.includes("id token");
   }
+  function isMagicCancellation(error) {
+    if (!error) {
+      return false;
+    }
+    const code = getMagicErrorCode(error);
+    const codeAsText = String(code || "").toLowerCase();
+    const name = String(error.name || "").toLowerCase();
+    const message = String(error.message || "").toLowerCase();
+    return code === -10001 || codeAsText.includes("userCancelled") || codeAsText.includes("cancelled") || name.includes("userCancelled") || name.includes("cancelled") || message.includes("user cancelled") || message.includes("user closed") || message.includes("modal closed") || message.includes("aborted");
+  }
   function getMagicUserErrorMessage(error) {
     const code = getMagicErrorCode(error);
     const codeAsText = String(code || "").toLowerCase();
@@ -445,7 +472,7 @@ var AnvisningerAuthFlow = (() => {
       return "For mange loginfors\xF8g. Vent et \xF8jeblik og pr\xF8v igen.";
     }
     if (codeAsText.includes("invalid") || message.includes("invalid otp") || message.includes("invalid code")) {
-      return "Koden er ugyldig. Tjek koden i e-mailen og pr\xF8v igen.";
+      return null;
     }
     if (codeAsText.includes("accessdeniedtouser") || code === -10011 || message.includes("access denied")) {
       return "Adgang afvist. Kontakt support for hj\xE6lp.";
@@ -455,18 +482,23 @@ var AnvisningerAuthFlow = (() => {
     }
     return null;
   }
-  function handleLoginError(error) {
+  function handleLoginError(error, config) {
     console.error("Error while logging in:", error);
+    if (isMagicCancellation(error)) {
+      return;
+    }
     if (isMagicError(error)) {
-      const message = getMagicUserErrorMessage(error) || "Der opstod en loginfejl. Pr\xF8v igen om lidt.";
-      window.alert(message);
+      const message = getMagicUserErrorMessage(error);
+      if (message) {
+        displayErrorMessage(message, config);
+      }
       return;
     }
     if (String(error?.message || "").toLowerCase().includes("outseta")) {
-      window.alert("Login lykkedes ikke. Pr\xF8v igen. Kontakt support, hvis fejlen forts\xE6tter.");
+      displayErrorMessage("Login lykkedes ikke. Pr\xF8v igen. Kontakt support, hvis fejlen forts\xE6tter.", config);
       return;
     }
-    window.alert("Der opstod et teknisk problem. Pr\xF8v igen. Kontakt support, hvis fejlen forts\xE6tter.");
+    displayErrorMessage("Der opstod et teknisk problem. Pr\xF8v igen. Kontakt support, hvis fejlen forts\xE6tter.", config);
   }
   function ensureMagic(config) {
     if (window.magic) {
@@ -480,6 +512,7 @@ var AnvisningerAuthFlow = (() => {
   }
   async function handleLogin(event, config) {
     event.preventDefault();
+    clearErrorMessage(config);
     const submitButton = document.getElementById(config.submitButtonId);
     if (submitButton) {
       submitButton.disabled = true;
@@ -487,7 +520,7 @@ var AnvisningerAuthFlow = (() => {
     const emailInput = document.getElementById(config.emailInputId);
     const email = (emailInput?.value || "").trim().toLowerCase();
     if (!email || !isValidEmail(email)) {
-      window.alert("Indtast venligst en gyldig e-mailadresse.");
+      displayErrorMessage("Indtast venligst en gyldig e-mailadresse.", config);
       if (submitButton) {
         submitButton.disabled = false;
       }
@@ -498,7 +531,7 @@ var AnvisningerAuthFlow = (() => {
     }
     const emailCheckResult = await checkEmailExistsForLogin(email, config);
     if (emailCheckResult.checked && !emailCheckResult.exists) {
-      window.alert("Vi kunne ikke finde en konto med denne e-mail. Forts\xE6t til oprettelse.");
+      displayErrorMessage("Vi kunne ikke finde en konto med denne e-mail. Forts\xE6t til oprettelse.", config);
       if (submitButton) {
         submitButton.disabled = false;
       }
@@ -518,7 +551,7 @@ var AnvisningerAuthFlow = (() => {
       try {
         ensureMagic(config);
       } catch (error) {
-        handleLoginError(error);
+        handleLoginError(error, config);
       }
       const submitButton = document.getElementById(config.submitButtonId);
       if (!submitButton) {
@@ -527,7 +560,9 @@ var AnvisningerAuthFlow = (() => {
       }
       submitButton.addEventListener("click", (event) => {
         handleLogin(event, config).catch((error) => {
-          handleLoginError(error);
+          if (!isMagicCancellation(error)) {
+            handleLoginError(error, config);
+          }
           submitButton.disabled = false;
         });
       });
@@ -611,7 +646,7 @@ var AnvisningerAuthFlow = (() => {
   }
 
   // packages/auth-flow/src/index.js
-  var BUILD_TIME = true ? "2026-03-18T14:01:54.259Z" : null;
+  var BUILD_TIME = true ? "2026-03-18T14:18:22.959Z" : null;
   var DEFAULT_CONFIG = {
     sliderId: "slider-signup",
     cvrWorkerUrl: "https://anvisninger-cvr-dev.maxks.workers.dev/cvr",
