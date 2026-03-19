@@ -647,7 +647,7 @@ var AnvisningerAuthFlow = (() => {
   }
 
   // packages/auth-flow/src/index.js
-  var BUILD_TIME = true ? "2026-03-18T14:52:35.603Z" : null;
+  var BUILD_TIME = true ? "2026-03-19T13:46:42.876Z" : null;
   var DEFAULT_CONFIG = {
     sliderId: "slider-signup",
     cvrWorkerUrl: "https://anvisninger-cvr-dev.maxks.workers.dev/cvr",

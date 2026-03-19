@@ -215,53 +215,182 @@ Before `</body>`:
 </script>
 ```
 
-### Login page
+### Signup page (recommended with package delivery failsafe)
 
-Inside `<head>`:
+Add a hidden guidance element somewhere on the page:
+
+```html
+<div id="package-delivery-failsafe" style="display:none;">
+    <p></p>
+</div>
+```
+
+Then inside `<head>`:
+
+```html
+<script>
+    function handleSignupFailure() {
+        alert("⚠️ Det er ikke muligt at oprette sig lige nu. Prøv igen senere eller kontakt Molio support.");
+        window.location.href = "https://molio.dk/support/vaerktojer/sbi-og-anvisninger-dk/";
+    }
+
+    (function initSignupWithFailSafe() {
+        const script = document.createElement("script");
+        script.src = "https://anvisninger.github.io/signup-flow/dist/auth-flow.js";
+        script.async = true;
+        script.defer = true;
+
+        script.onload = function () {
+            if (!window.AnvisningerAuthFlow || typeof window.AnvisningerAuthFlow.initSignupFlow !== "function") {
+                handleSignupFailure();
+                return;
+            }
+
+            window.AnvisningerAuthFlow.initSignupFlow();
+
+            if (window.AnvisningerAuthFlow.isCritical) {
+                handleSignupFailure();
+                return;
+            }
+
+            setInterval(function () {
+                if (window.AnvisningerAuthFlow && window.AnvisningerAuthFlow.isCritical) {
+                    handleSignupFailure();
+                }
+            }, 2000);
+        };
+
+        script.onerror = handleSignupFailure;
+        document.head.appendChild(script);
+    })();
+</script>
+```
+
+This inline frontend failsafe will:
+- Load `auth-flow.js`
+- Initialize `initSignupFlow()` only after successful load
+- Redirect users to support if package delivery fails or the flow enters a critical state
+
+### Login page (recommended with failsafe, all scripts in `<head>`)
 
 ```html
 <script src="https://cdn.jsdelivr.net/npm/magic-sdk/dist/magic.js"></script>
 <script src="https://anvisninger.github.io/signup-flow/dist/auth-flow.js"></script>
-```
-
-Before `</body>`:
-
-```html
 <script>
-    AnvisningerAuthFlow.initOutsetaMagicLogin();
+    function handleLoginFailure() {
+        alert("⚠️ Login er ikke muligt lige nu. Prøv igen senere eller kontakt Molio support.");
+        window.location.href = "https://molio.dk/support/vaerktojer/sbi-og-anvisninger-dk/";
+    }
+
+    window.addEventListener("load", function () {
+        if (typeof window.Magic === "undefined") {
+            handleLoginFailure();
+            return;
+        }
+
+        if (!window.AnvisningerAuthFlow || typeof window.AnvisningerAuthFlow.initOutsetaMagicLogin !== "function") {
+            handleLoginFailure();
+            return;
+        }
+
+        try {
+            window.AnvisningerAuthFlow.initOutsetaMagicLogin();
+        } catch {
+            handleLoginFailure();
+            return;
+        }
+
+        if (window.AnvisningerAuthFlow.isCritical) {
+            handleLoginFailure();
+            return;
+        }
+
+        setInterval(function () {
+            if (window.AnvisningerAuthFlow && window.AnvisningerAuthFlow.isCritical) {
+                handleLoginFailure();
+            }
+        }, 2000);
+    });
 </script>
 ```
 
-### Logout page
-
-Inside `<head>`:
+### Logout page (recommended with failsafe, all scripts in `<head>`)
 
 ```html
 <script src="https://cdn.jsdelivr.net/npm/magic-sdk/dist/magic.js"></script>
 <script src="https://anvisninger.github.io/signup-flow/dist/auth-flow.js"></script>
-```
-
-Before `</body>`:
-
-```html
 <script>
-    AnvisningerAuthFlow.initOutsetaMagicLogout();
+    function handleLogoutFailure() {
+        alert("⚠️ Logout er ikke muligt lige nu. Prøv igen senere eller kontakt Molio support.");
+        window.location.href = "https://molio.dk/support/vaerktojer/sbi-og-anvisninger-dk/";
+    }
+
+    window.addEventListener("load", function () {
+        if (typeof window.Magic === "undefined") {
+            handleLogoutFailure();
+            return;
+        }
+
+        if (!window.AnvisningerAuthFlow || typeof window.AnvisningerAuthFlow.initOutsetaMagicLogout !== "function") {
+            handleLogoutFailure();
+            return;
+        }
+
+        try {
+            window.AnvisningerAuthFlow.initOutsetaMagicLogout();
+        } catch {
+            handleLogoutFailure();
+            return;
+        }
+
+        if (window.AnvisningerAuthFlow.isCritical) {
+            handleLogoutFailure();
+            return;
+        }
+
+        setInterval(function () {
+            if (window.AnvisningerAuthFlow && window.AnvisningerAuthFlow.isCritical) {
+                handleLogoutFailure();
+            }
+        }, 2000);
+    });
 </script>
 ```
 
-### Callback page
-
-Inside `<head>`:
+### Callback page (recommended with failsafe, all scripts in `<head>`)
 
 ```html
 <script src="https://anvisninger.github.io/signup-flow/dist/auth-flow.js"></script>
-```
-
-Before `</body>`:
-
-```html
 <script>
-    AnvisningerAuthFlow.initOutsetaAuthCallback();
+    function handleCallbackFailure() {
+        alert("⚠️ Godkendelse er ikke mulig lige nu. Prøv igen senere eller kontakt Molio support.");
+        window.location.href = "https://molio.dk/support/vaerktojer/sbi-og-anvisninger-dk/";
+    }
+
+    window.addEventListener("load", function () {
+        if (!window.AnvisningerAuthFlow || typeof window.AnvisningerAuthFlow.initOutsetaAuthCallback !== "function") {
+            handleCallbackFailure();
+            return;
+        }
+
+        try {
+            window.AnvisningerAuthFlow.initOutsetaAuthCallback();
+        } catch {
+            handleCallbackFailure();
+            return;
+        }
+
+        if (window.AnvisningerAuthFlow.isCritical) {
+            handleCallbackFailure();
+            return;
+        }
+
+        setInterval(function () {
+            if (window.AnvisningerAuthFlow && window.AnvisningerAuthFlow.isCritical) {
+                handleCallbackFailure();
+            }
+        }, 2000);
+    });
 </script>
 ```
 

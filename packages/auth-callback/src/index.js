@@ -13,7 +13,6 @@ const DEFAULT_CALLBACK_CONFIG = {
     "zWZLy6Qp",
     "amR8RM9J",
     "79O8x6WE",
-    "j9bn3w9n",
     "zWZG31mp",
     "LmJO1AQP",
     "DQ25J6mV",
@@ -21,8 +20,6 @@ const DEFAULT_CALLBACK_CONFIG = {
     "pWrPoaQn",
     "E9L7vZQw",
     "y9gxX8WM",
-    "Rm88n5m4",
-    "L9P8AE9J",
     "amRAV3WJ",
     "4960R4mX",
     "7ma8z1WE",
@@ -33,7 +30,10 @@ const DEFAULT_CALLBACK_CONFIG = {
     "XQYOn4WP",
     "wQX2vZWK",
     "L9PMe6WJ",
-    "BWzE5N9E"
+    "BWzE5N9E",
+    "dQGxOp94",
+    "OW4073Wg",
+    "XQYOgRWP"
   ],
 };
 
