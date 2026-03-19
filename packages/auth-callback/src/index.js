@@ -10,30 +10,32 @@ const DEFAULT_CALLBACK_CONFIG = {
   cookieDaysToExpire: 7,
   useWebflowReady: false,
   validPlanUids: [
-    "zWZLy6Qp",
-    "amR8RM9J",
-    "79O8x6WE",
-    "zWZG31mp",
-    "LmJO1AQP",
-    "DQ25J6mV",
-    "wmj17oWV",
-    "pWrPoaQn",
-    "E9L7vZQw",
-    "y9gxX8WM",
-    "amRAV3WJ",
-    "4960R4mX",
-    "7ma8z1WE",
-    "4960KdmX",
-    "y9qDkqQA",
-    "dQGxko94",
-    "OW40EGWg",
-    "XQYOn4WP",
-    "wQX2vZWK",
-    "L9PMe6WJ",
-    "BWzE5N9E",
-    "dQGxOp94",
-    "OW4073Wg",
-    "XQYOgRWP"
+    "BWzE5N9E", // Basis
+    "zWZLy6Qp", // Pro
+    "amR8RM9J", // Pro #1
+    "79O8x6WE", // Pro #2
+    "j9bn3w9n", // Pro #3
+    "zWZG31mp", // Pro #4
+    "LmJO1AQP", // Pro #5
+    "DQ25J6mV", // Pro #6
+    "wmj17oWV", // Pro #7
+    "pWrPoaQn", // Pro #8
+    "E9L7vZQw", // Pro #9
+    "y9gxX8WM", // Pro #10
+    "L9P8AE9J", // Uddannelse
+    "amRAV3WJ", // Pro - Introduktionstilbud
+    "4960R4mX", // Pro - 1
+    "7ma8z1WE", // Pro - 2-5
+    "4960KdmX", // Pro - 6-10
+    "y9qDkqQA", // Pro - 11-20
+    "dQGxko94", // Pro - 21-50
+    "OW40EGWg", // Pro - 51-100
+    "XQYOn4WP", // Pro - 101-250
+    "wQX2vZWK", // Pro - 251-1000
+    "L9PMe6WJ", // Pro - 1000+
+    "dQGxOp94", // Organisation - Lille
+    "OW4073Wg", // Organisation - Mellem
+    "XQYOgRWP", // Organisation - Stor
   ],
 };
 
