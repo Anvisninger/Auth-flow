@@ -2,6 +2,7 @@ const DEFAULT_CALLBACK_CONFIG = {
   loginReferrerPaths: ["/auth/login", "/log-ind", "/401", "/oprettelse/onboarding"],
   loginRedirectPath: "/auth/login",
   onboardingRedirectPath: "/oprettelse/onboarding",
+  permissionRedirectPath: "/oprettelse/permission",
   upgradeRedirectPath: "/kampagne/opgrader",
   overviewRedirectPath: "/oversigt",
   errorRedirectPath: "/404",
@@ -113,6 +114,66 @@ function redirectToErrorPage(config, errorPath = config.errorRedirectPath) {
   window.location.href = errorPath;
 }
 
+function parseBooleanFlag(value) {
+  if (value === true || value === "true" || value === 1 || value === "1") {
+    return true;
+  }
+
+  if (value === false || value === "false" || value === 0 || value === "0") {
+    return false;
+  }
+
+  return null;
+}
+
+function pickFirstDefinedValue(objects, keys) {
+  for (const obj of objects) {
+    if (!obj || typeof obj !== "object") continue;
+
+    for (const key of keys) {
+      if (obj[key] !== undefined && obj[key] !== null) {
+        return obj[key];
+      }
+    }
+  }
+
+  return undefined;
+}
+
+async function getFlowFlags(jwt) {
+  let profile = null;
+
+  if (window.Outseta && typeof window.Outseta.getUser === "function") {
+    try {
+      profile = await window.Outseta.getUser();
+    } catch (error) {
+      console.warn("[Callback] Could not load Outseta profile for flow flags.", error);
+    }
+  }
+
+  const sources = [
+    jwt,
+    profile,
+    profile?.Account,
+    profile?.Person,
+    profile?.PrimaryPerson,
+    profile?.Account?.CustomFields,
+    profile?.Person?.CustomFields,
+    profile?.PrimaryPerson?.CustomFields,
+  ];
+
+  const permissionFlowValue = pickFirstDefinedValue(sources, [
+    "permissionFlow2026",
+    "PermissionFlow2026",
+    "outseta:permissionFlow2026",
+    "outseta:custom:permissionFlow2026",
+  ]);
+
+  return {
+    permissionFlow2026: parseBooleanFlag(permissionFlowValue),
+  };
+}
+
 function redirectToPlan(planUid, config) {
   if (config.validPlanUids.includes(planUid)) {
     window.location.href = config.overviewRedirectPath;
@@ -161,7 +222,7 @@ function handlePlanUpgrade(config) {
     });
 }
 
-function handleAccessTokenSet(jwt, config, opgrader, hasLoggedIn) {
+async function handleAccessTokenSet(jwt, config, opgrader, hasLoggedIn) {
   const planUid = jwt?.["outseta:planUid"];
 
   if (!planUid) {
@@ -183,6 +244,20 @@ function handleAccessTokenSet(jwt, config, opgrader, hasLoggedIn) {
     return;
   }
 
+  const flowFlags = await getFlowFlags(jwt);
+
+  if (hasLoggedIn === "true" && flowFlags.permissionFlow2026 === true) {
+    removeCallbackFlags();
+    redirectToPlan(planUid, config);
+    return;
+  }
+
+  if (hasLoggedIn === "true") {
+    removeCallbackFlags();
+    window.location.href = config.permissionRedirectPath;
+    return;
+  }
+
   if (opgrader === "true") {
     removeCallbackFlags();
     window.location.href = config.upgradeRedirectPath;
@@ -201,7 +276,7 @@ function handleLoginRedirection(config, opgrader, hasLoggedIn) {
 
   let handled = false;
 
-  window.Outseta.on("accessToken.set", (jwt) => {
+  window.Outseta.on("accessToken.set", async (jwt) => {
     if (handled) return;
     handled = true;
 
@@ -211,7 +286,12 @@ function handleLoginRedirection(config, opgrader, hasLoggedIn) {
       return;
     }
 
-    handleAccessTokenSet(jwt, config, opgrader, hasLoggedIn);
+    try {
+      await handleAccessTokenSet(jwt, config, opgrader, hasLoggedIn);
+    } catch (error) {
+      console.error("[Callback] Error handling access token during login redirection.", error);
+      redirectToErrorPage(config);
+    }
   });
 
   setTimeout(() => {
