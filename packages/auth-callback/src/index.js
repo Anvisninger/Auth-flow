@@ -7,6 +7,7 @@ const DEFAULT_CALLBACK_CONFIG = {
   overviewRedirectPath: "/oversigt",
   errorRedirectPath: "/404",
   planUidCookieName: "outsetaPlanUid",
+  userUidCookieName: "outsetaUserUid",
   cookieDomain: ".anvisninger.dk",
   cookieDaysToExpire: 7,
   useWebflowReady: false,
@@ -182,7 +183,7 @@ function redirectToPlan(planUid, config) {
       window.location.href = postLoginUrl;
       return false;
     }
-    
+
     window.location.href = config.overviewRedirectPath;
     return;
   }
@@ -231,12 +232,20 @@ function handlePlanUpgrade(config) {
 
 async function handleAccessTokenSet(jwt, config, opgrader, hasLoggedIn) {
   const planUid = jwt?.["outseta:planUid"];
+  const userUid = jwt?.["sub"];
 
   if (!planUid) {
     console.error("[Callback] No planUid in JWT during login redirection.", jwt);
     redirectToErrorPage(config);
     return;
   }
+
+  setCookieWithExpiry(
+    config.userUidCookieName,
+    userUid,
+    config.cookieDaysToExpire,
+    resolveCookieDomain(config)
+  );
 
   setCookieWithExpiry(
     config.planUidCookieName,

@@ -93,6 +93,7 @@ var AnvisningerAuthFlow = (() => {
     overviewRedirectPath: "/oversigt",
     errorRedirectPath: "/404",
     planUidCookieName: "outsetaPlanUid",
+    userUidCookieName: "outsetaUserUid",
     cookieDomain: ".anvisninger.dk",
     cookieDaysToExpire: 7,
     useWebflowReady: false,
@@ -306,11 +307,18 @@ var AnvisningerAuthFlow = (() => {
   }
   async function handleAccessTokenSet(jwt, config, opgrader, hasLoggedIn) {
     const planUid = jwt?.["outseta:planUid"];
+    const userUid = jwt?.["sub"];
     if (!planUid) {
       console.error("[Callback] No planUid in JWT during login redirection.", jwt);
       redirectToErrorPage(config);
       return;
     }
+    setCookieWithExpiry(
+      config.userUidCookieName,
+      userUid,
+      config.cookieDaysToExpire,
+      resolveCookieDomain(config)
+    );
     setCookieWithExpiry(
       config.planUidCookieName,
       planUid,
@@ -747,7 +755,7 @@ var AnvisningerAuthFlow = (() => {
   }
 
   // packages/auth-flow/src/index.js
-  var BUILD_TIME = true ? "2026-11-25T10:27:25.077Z" : null;
+  var BUILD_TIME = true ? "2026-11-25T11:06:25.043Z" : null;
   var DEFAULT_CONFIG = {
     sliderId: "slider-signup",
     cvrWorkerUrl: "https://anvisninger-cvr-dev.maxks.workers.dev/cvr",
