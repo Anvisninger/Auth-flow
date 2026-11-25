@@ -232,12 +232,22 @@ function handlePlanUpgrade(config) {
 
 async function handleAccessTokenSet(jwt, config, opgrader, hasLoggedIn) {
   const planUid = jwt?.["outseta:planUid"];
+  const subscriptionUid = jwt?.["outseta:subscriptionUid"];
+  const accountUid = jwt?.["outseta:accountUid"];
   const userUid = jwt?.["sub"];
+  const name = jwt?.["name"];
+  const email = jwt?.["email"];
 
   if (!planUid) {
     console.error("[Callback] No planUid in JWT during login redirection.", jwt);
     redirectToErrorPage(config);
     return;
+  }
+
+  if(posthog && email && name && planUid && subscriptionUid && accountUid) {
+    posthog.identify(userUid,
+      { email: email, name: name, planUid: planUid, subscriptionUid: subscriptionUid, accountUid: accountUid }
+    );
   }
 
   setCookieWithExpiry(

@@ -307,11 +307,21 @@ var AnvisningerAuthFlow = (() => {
   }
   async function handleAccessTokenSet(jwt, config, opgrader, hasLoggedIn) {
     const planUid = jwt?.["outseta:planUid"];
+    const subscriptionUid = jwt?.["outseta:subscriptionUid"];
+    const accountUid = jwt?.["outseta:accountUid"];
     const userUid = jwt?.["sub"];
+    const name = jwt?.["name"];
+    const email = jwt?.["email"];
     if (!planUid) {
       console.error("[Callback] No planUid in JWT during login redirection.", jwt);
       redirectToErrorPage(config);
       return;
+    }
+    if (posthog && email && name && planUid && subscriptionUid && accountUid) {
+      posthog.identify(
+        userUid,
+        { email, name, planUid, subscriptionUid, accountUid }
+      );
     }
     setCookieWithExpiry(
       config.userUidCookieName,
@@ -413,6 +423,7 @@ var AnvisningerAuthFlow = (() => {
     errorBoxId: "errorbox",
     logoutCookieName: "outsetaPlanUid",
     logoutCookieDomain: ".anvisninger.dk",
+    userUidCookieName: "userId",
     emailCheckWorkerUrl: "https://anvisninger-outseta-planinfo.maxks.workers.dev/check-email",
     emailCheckTimeoutMs: 8e3,
     signupPath: "/oprettelse/opret-abonnement",
@@ -523,6 +534,7 @@ var AnvisningerAuthFlow = (() => {
   function handleLogout(config) {
     clearAuthStorage();
     expireCookie(config.logoutCookieName, resolveCookieDomain2(config));
+    expireCookie(config.userUidCookieName, resolveCookieDomain2(config));
     window.alert("Luk venligst alle vinduer for at logge helt ud!");
   }
   function handleURLActions(config) {
@@ -684,6 +696,7 @@ var AnvisningerAuthFlow = (() => {
     magicPublishableKey: "pk_live_5FDB2E95F816D1E5",
     redirectPath: "/auth/login#o-logout-link",
     logoutCookieName: "outsetaPlanUid",
+    userUidCookieName: "userId",
     logoutCookieDomain: ".anvisninger.dk",
     useWebflowReady: false
   };
@@ -726,6 +739,8 @@ var AnvisningerAuthFlow = (() => {
   function clearCookie(config) {
     expireCookie2(config.logoutCookieName, resolveCookieDomain3(config));
     expireCookie2(config.logoutCookieName, null);
+    expireCookie2(config.userUidCookieName, resolveCookieDomain3(config));
+    expireCookie2(config.userUidCookieName, null);
   }
   async function logoutOutseta() {
     if (window.Outseta?.auth && typeof window.Outseta.auth.logout === "function") {
@@ -755,7 +770,7 @@ var AnvisningerAuthFlow = (() => {
   }
 
   // packages/auth-flow/src/index.js
-  var BUILD_TIME = true ? "2026-11-25T11:16:49.728Z" : null;
+  var BUILD_TIME = true ? "2026-11-25T12:11:48.609Z" : null;
   var DEFAULT_CONFIG = {
     sliderId: "slider-signup",
     cvrWorkerUrl: "https://anvisninger-cvr-dev.maxks.workers.dev/cvr",
