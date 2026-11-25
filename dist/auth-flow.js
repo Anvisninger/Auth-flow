@@ -263,6 +263,12 @@ var AnvisningerAuthFlow = (() => {
   }
   function redirectToPlan(planUid, config) {
     if (config.validPlanUids.includes(planUid)) {
+      const postLoginUrl = sessionStorage.getItem("postLoginUrl");
+      if (postLoginUrl) {
+        sessionStorage.removeItem("postLoginUrl");
+        window.location.href = postLoginUrl;
+        return false;
+      }
       window.location.href = config.overviewRedirectPath;
       return;
     }
@@ -741,7 +747,7 @@ var AnvisningerAuthFlow = (() => {
   }
 
   // packages/auth-flow/src/index.js
-  var BUILD_TIME = true ? "2026-03-26T14:01:23.887Z" : null;
+  var BUILD_TIME = true ? "2026-11-25T10:27:25.077Z" : null;
   var DEFAULT_CONFIG = {
     sliderId: "slider-signup",
     cvrWorkerUrl: "https://anvisninger-cvr-dev.maxks.workers.dev/cvr",
