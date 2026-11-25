@@ -93,7 +93,7 @@ var AnvisningerAuthFlow = (() => {
     overviewRedirectPath: "/oversigt",
     errorRedirectPath: "/404",
     planUidCookieName: "outsetaPlanUid",
-    userUidCookieName: "outsetaUserUid",
+    userUidCookieName: "userId",
     cookieDomain: ".anvisninger.dk",
     cookieDaysToExpire: 7,
     useWebflowReady: false,
@@ -755,7 +755,7 @@ var AnvisningerAuthFlow = (() => {
   }
 
   // packages/auth-flow/src/index.js
-  var BUILD_TIME = true ? "2026-11-25T11:06:25.043Z" : null;
+  var BUILD_TIME = true ? "2026-11-25T11:16:49.728Z" : null;
   var DEFAULT_CONFIG = {
     sliderId: "slider-signup",
     cvrWorkerUrl: "https://anvisninger-cvr-dev.maxks.workers.dev/cvr",

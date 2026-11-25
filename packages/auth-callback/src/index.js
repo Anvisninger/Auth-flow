@@ -7,7 +7,7 @@ const DEFAULT_CALLBACK_CONFIG = {
   overviewRedirectPath: "/oversigt",
   errorRedirectPath: "/404",
   planUidCookieName: "outsetaPlanUid",
-  userUidCookieName: "outsetaUserUid",
+  userUidCookieName: "userId",
   cookieDomain: ".anvisninger.dk",
   cookieDaysToExpire: 7,
   useWebflowReady: false,
