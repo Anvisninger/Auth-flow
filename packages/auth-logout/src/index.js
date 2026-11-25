@@ -2,6 +2,7 @@ const DEFAULT_LOGOUT_CONFIG = {
   magicPublishableKey: "pk_live_5FDB2E95F816D1E5",
   redirectPath: "/auth/login#o-logout-link",
   logoutCookieName: "outsetaPlanUid",
+  userUidCookieName: "userId",
   logoutCookieDomain: ".anvisninger.dk",
   useWebflowReady: false,
 };
@@ -54,6 +55,8 @@ function expireCookie(name, domain) {
 function clearCookie(config) {
   expireCookie(config.logoutCookieName, resolveCookieDomain(config));
   expireCookie(config.logoutCookieName, null);
+  expireCookie(config.userUidCookieName, resolveCookieDomain(config))
+  expireCookie(config.userUidCookieName, null);
 }
 
 async function logoutOutseta() {

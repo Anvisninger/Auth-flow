@@ -10,6 +10,7 @@ const DEFAULT_LOGIN_CONFIG = {
   errorBoxId: "errorbox",
   logoutCookieName: "outsetaPlanUid",
   logoutCookieDomain: ".anvisninger.dk",
+  userUidCookieName: "userId",
   emailCheckWorkerUrl: "https://anvisninger-outseta-planinfo.maxks.workers.dev/check-email",
   emailCheckTimeoutMs: 8000,
   signupPath: "/oprettelse/opret-abonnement",
@@ -146,6 +147,7 @@ function expireCookie(name, domain) {
 function handleLogout(config) {
   clearAuthStorage();
   expireCookie(config.logoutCookieName, resolveCookieDomain(config));
+  expireCookie(config.userUidCookieName, resolveCookieDomain(config));
   window.alert("Luk venligst alle vinduer for at logge helt ud!");
 }
 
