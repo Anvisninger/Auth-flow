@@ -176,6 +176,13 @@ async function getFlowFlags(jwt) {
 
 function redirectToPlan(planUid, config) {
   if (config.validPlanUids.includes(planUid)) {
+    const postLoginUrl = sessionStorage.getItem('postLoginUrl');
+    if (postLoginUrl) {
+      sessionStorage.removeItem('postLoginUrl');
+      window.location.href = postLoginUrl;
+      return false;
+    }
+    
     window.location.href = config.overviewRedirectPath;
     return;
   }
